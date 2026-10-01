@@ -13,8 +13,10 @@ jobs:
       - name: Check out pinned LANCommander source
         uses: actions/checkout@v4
         with:
-          repository: LANCommander/LANCommander
-          ref: c207d4368eab14f16d24f3b08b86f74bf546313b
+          # The server plugin contracts are not upstream yet, so this pins the fork branch that
+          # carries them. Repoint at LANCommander/LANCommander once they merge.
+          repository: aaronpowell/LANCommander
+          ref: 226a1e6b1a5a86275872c002094cf8461c7b9898
           path: lancommander
 
       - uses: actions/setup-dotnet@v4
@@ -26,6 +28,7 @@ jobs:
         run: |
           dotnet build .\lancommander\LANCommander.SDK\LANCommander.SDK.csproj -c Debug -f net10.0
           dotnet build .\lancommander\LANCommander.Packaging\LANCommander.Packaging.csproj -c Debug -f net10.0
+          dotnet build .\lancommander\LANCommander.Server.Plugins\LANCommander.Server.Plugins.csproj -c Debug
 
       - name: Build and test prototype
         shell: pwsh

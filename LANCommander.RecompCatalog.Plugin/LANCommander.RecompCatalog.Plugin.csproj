@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- The plugin is dropped into the server's Plugins folder; it serves no static web assets. -->
+    <StaticWebAssetsEnabled>false</StaticWebAssetsEnabled>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <!--
+    Host contract assemblies are compile-time only (Private="false"). The server already has them
+    loaded, and PluginLoadContext defers these names to the default context so the contract types
+    keep a single identity across the plugin's load context. Shipping copies would break that.
+  -->
+  <ItemGroup>
+    <Reference Include="LANCommander.SDK" HintPath="$(LANCommanderSdkArtifacts)\LANCommander.SDK.dll" Private="false" />
+    <Reference Include="LANCommander.Server.Plugins" HintPath="$(LANCommanderServerPluginsArtifacts)\LANCommander.Server.Plugins.dll" Private="false" />
+  </ItemGroup>
+
+  <Target Name="RequireLANCommanderPluginAssemblies" BeforeTargets="ResolveReferences">
+    <Error Condition="!Exists('$(LANCommanderSdkArtifacts)\LANCommander.SDK.dll')"
+           Text="LANCommander.SDK.dll was not found. Build the pinned LANCommander source and set LANCommanderRoot. See README.md." />
+    <Error Condition="!Exists('$(LANCommanderServerPluginsArtifacts)\LANCommander.Server.Plugins.dll')"
+           Text="LANCommander.Server.Plugins.dll was not found. Build the pinned LANCommander source and set LANCommanderRoot. See README.md." />
+  </Target>
+
+</Project>
