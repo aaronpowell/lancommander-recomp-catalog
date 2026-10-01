@@ -79,6 +79,14 @@ GitHub releases and Windows `.zip`/`.exe` assets.
 
 - GitHub's latest release endpoint is the only release provider/strategy.
 - Catalog icons and extra file acquisition are not embedded in the LCX.
+- Original-game ROM provisioning is deferred. A future plugin version should let an
+  administrator provide a ROM as a LANCommander redistributable and use an
+  install/post-install script to copy it to the recomp's required path. The plugin must not
+  download or bundle ROMs.
+- Initial launcher validation reached game startup after import/install, but LANCommander
+  returned a 404 from `GameClient.GetAllocatedKeyAsync` while retrieving allocated keys. This
+  is tracked as a separate LANCommander launcher/server issue rather than a prototype
+  import/package failure.
 - The operator must assess upstream licensing and supply-chain trust.
 - LCX timestamps are assigned by LANCommander packaging APIs, so IDs are deterministic but the
   package is not byte-for-byte reproducible.
