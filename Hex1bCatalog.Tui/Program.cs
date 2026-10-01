@@ -7,7 +7,8 @@ const string DefaultFeed =
 
 var feed = GetOption(args, "--feed") ?? DefaultFeed;
 var outputDirectory = Path.GetFullPath(GetOption(args, "--output") ?? Environment.CurrentDirectory);
-var githubToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN");
+var githubAuthentication = GitHubAuthentication.FromEnvironment(
+    GetOption(args, "--github-token-env"));
 Directory.CreateDirectory(outputDirectory);
 
 using var cancellation = new CancellationTokenSource();
@@ -17,7 +18,7 @@ Console.CancelKeyPress += (_, eventArgs) =>
     cancellation.Cancel();
 };
 
-using var services = new PrototypeServices(githubToken);
+using var services = new PrototypeServices(githubAuthentication.Token);
 var temporaryDirectory = Path.Combine(
     Path.GetTempPath(),
     "lancommander-recomp-catalog",
@@ -27,7 +28,13 @@ Directory.CreateDirectory(temporaryDirectory);
 try
 {
     if (await TryRunNonInteractiveAsync(
-            args, feed, outputDirectory, temporaryDirectory, services, cancellation.Token))
+            args,
+            feed,
+            outputDirectory,
+            temporaryDirectory,
+            services,
+            githubAuthentication.Description,
+            cancellation.Token))
     {
         return;
     }
@@ -50,6 +57,7 @@ try
         v.Text("Independent from and not affiliated with or endorsed by Quiver."),
         v.Text("Quiver inspired the workflow; its public feed format/data are compatibility inputs only."),
         v.Text($"Feed: {feed}"),
+        v.Text($"GitHub API: {githubAuthentication.Description}"),
         v.TextBox(search).OnTextChanged(changed =>
         {
             if (artifact != null && File.Exists(artifact.ZipPath))
@@ -224,6 +232,7 @@ static async Task<bool> TryRunNonInteractiveAsync(
     string outputDirectory,
     string temporaryDirectory,
     PrototypeServices services,
+    string githubAuthenticationDescription,
     CancellationToken cancellationToken)
 {
     var inspectRepository = GetOption(arguments, "--inspect");
@@ -238,6 +247,7 @@ static async Task<bool> TryRunNonInteractiveAsync(
         }
         else
         {
+            Console.WriteLine($"GitHub API: {githubAuthenticationDescription}");
             var catalogEntry = catalogSources
                 .SelectMany(source => source.Entries)
                 .FirstOrDefault(entry => entry.Repository.Equals(

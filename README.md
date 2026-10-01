@@ -47,6 +47,19 @@ dotnet run --project Hex1bCatalog.Tui -- `
   --output .\packages
 ```
 
+Authenticate GitHub API requests to avoid the low anonymous rate limit:
+
+```powershell
+$env:GH_TOKEN = "your-token"
+# GITHUB_TOKEN is also supported.
+dotnet run --project Hex1bCatalog.Tui -- --inspect BanjoRecomp/BanjoRecomp
+```
+
+For a differently named environment variable, pass `--github-token-env VARIABLE_NAME`.
+The token is read from the environment, attached only to `api.github.com` requests, and is
+never written to disk or included in LCX metadata. Public repositories require no token
+permissions; a fine-grained token with public-repository access is sufficient.
+
 Use `--list-only` for a non-interactive feed connectivity/schema check, or
 `--inspect owner/repository` to verify release resolution and Windows asset filtering.
 
@@ -58,8 +71,9 @@ dotnet run --project Hex1bCatalog.Tui -- `
   --executable bin\game.exe `
   --output .\packages
 ```
-Set `GITHUB_TOKEN` to increase the GitHub API rate limit. Only public repository access is
-needed. The initial prototype supports GitHub releases and Windows `.zip`/`.exe` assets.
+When the API rejects a token or exhausts a rate limit, the prototype reports an actionable
+error and includes the reset time when GitHub provides one. The initial prototype supports
+GitHub releases and Windows `.zip`/`.exe` assets.
 
 ## Phase 0 gaps
 

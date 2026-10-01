@@ -59,6 +59,30 @@ public class GitHubReleaseClientTests
         Assert.Null(authorization[1]);
     }
 
+    [Fact]
+    public async Task ReportsAnonymousRateLimitAndResetTime()
+    {
+        var reset = DateTimeOffset.Parse("2026-10-01T05:00:00Z");
+        var response = new HttpResponseMessage(HttpStatusCode.Forbidden);
+        response.Headers.Add("X-RateLimit-Remaining", "0");
+        response.Headers.Add("X-RateLimit-Reset", reset.ToUnixTimeSeconds().ToString());
+        var client = new GitHubReleaseClient(new HttpClient(
+            new StubHttpMessageHandler(_ => response)));
+
+        var exception = await Assert.ThrowsAsync<GitHubRateLimitException>(() =>
+            client.GetLatestAsync(new CatalogEntry
+            {
+                Name = "Fixture Game",
+                Repository = "fixture/game",
+                FolderName = "FixtureGame",
+            }));
+
+        Assert.False(exception.Authenticated);
+        Assert.Equal(reset, exception.ResetsAt);
+        Assert.Contains("GH_TOKEN or GITHUB_TOKEN", exception.Message);
+        Assert.Contains("2026-10-01 05:00:00 UTC", exception.Message);
+    }
+
     private sealed class StubHttpMessageHandler(
         Func<HttpRequestMessage, HttpResponseMessage> responseFactory) : HttpMessageHandler
     {

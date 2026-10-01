@@ -1,4 +1,5 @@
 using System.Net.Http.Headers;
+using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Hex1bCatalog.Core;
@@ -37,6 +38,7 @@ public sealed class GitHubReleaseClient : IReleaseClient
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _token);
 
         using var response = await _httpClient.SendAsync(request, cancellationToken);
+        ThrowIfAuthenticationOrRateLimitFailure(response);
         response.EnsureSuccessStatusCode();
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
         var release = await JsonSerializer.DeserializeAsync<GitHubRelease>(
@@ -67,6 +69,39 @@ public sealed class GitHubReleaseClient : IReleaseClient
             release.Name ?? release.TagName,
             release.PublishedAt,
             assets);
+    }
+
+    private void ThrowIfAuthenticationOrRateLimitFailure(HttpResponseMessage response)
+    {
+        if (response.StatusCode == HttpStatusCode.Unauthorized && !string.IsNullOrWhiteSpace(_token))
+            throw new HttpRequestException(
+                "GitHub rejected the configured token. Check GH_TOKEN or GITHUB_TOKEN and try again.",
+                null,
+                response.StatusCode);
+
+        var remaining = response.Headers.TryGetValues("X-RateLimit-Remaining", out var values)
+            ? values.FirstOrDefault()
+            : null;
+        if (response.StatusCode != HttpStatusCode.TooManyRequests
+            && !(response.StatusCode == HttpStatusCode.Forbidden && remaining == "0"))
+            return;
+
+        DateTimeOffset? resetsAt = null;
+        if (response.Headers.TryGetValues("X-RateLimit-Reset", out var resetValues)
+            && long.TryParse(resetValues.FirstOrDefault(), out var resetSeconds))
+            resetsAt = DateTimeOffset.FromUnixTimeSeconds(resetSeconds);
+
+        var authentication = string.IsNullOrWhiteSpace(_token)
+            ? "The request was unauthenticated; set GH_TOKEN or GITHUB_TOKEN to raise the limit."
+            : "The configured token's rate limit is exhausted.";
+        var reset = resetsAt.HasValue
+            ? $" Retry after {resetsAt.Value.UtcDateTime:yyyy-MM-dd HH:mm:ss} UTC."
+            : "";
+
+        throw new GitHubRateLimitException(
+            resetsAt,
+            !string.IsNullOrWhiteSpace(_token),
+            $"GitHub API rate limit exceeded. {authentication}{reset}");
     }
 
     private sealed record GitHubRelease(
