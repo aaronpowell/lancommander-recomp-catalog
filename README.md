@@ -23,21 +23,54 @@ not a trust guarantee: administrators must review upstream projects and release 
 
 ## Build
 
-The prototype intentionally references locally built LANCommander DLLs until the packaging APIs
-are distributed as stable packages. It is pinned for CI to LANCommander revision
-`c207d4368eab14f16d24f3b08b86f74bf546313b`.
+The prototype intentionally references locally built LANCommander DLLs until the packaging and
+plugin APIs are distributed as stable packages. CI pins
+[`aaronpowell/LANCommander`](https://github.com/aaronpowell/LANCommander) at
+`226a1e6b1a5a86275872c002094cf8461c7b9898`, which carries the server plugin contracts that are not
+upstream yet.
 
 ```powershell
 $env:LANCOMMANDER_ROOT = "D:\copilot-app\copilot-worktrees\LANCommander\aaronpowell-potential-funicular"
 dotnet build "$env:LANCOMMANDER_ROOT\LANCommander.SDK\LANCommander.SDK.csproj" -f net10.0
 dotnet build "$env:LANCOMMANDER_ROOT\LANCommander.Packaging\LANCommander.Packaging.csproj" -f net10.0
+dotnet build "$env:LANCOMMANDER_ROOT\LANCommander.Server.Plugins\LANCommander.Server.Plugins.csproj"
 dotnet build Hex1bCatalog.slnx
 dotnet test Hex1bCatalog.Tests\Hex1bCatalog.Tests.csproj
 ```
 
 You can also pass `-p:LANCommanderRoot=D:\src\LANCommander`. The build resolves
-`LANCommander.SDK.dll`, `LANCommander.Packaging.dll`, and
-`LANCommander.Packaging.Abstractions.dll` from each project's `bin\Debug\net10.0` directory.
+`LANCommander.SDK.dll`, `LANCommander.Packaging.dll`,
+`LANCommander.Packaging.Abstractions.dll`, and `LANCommander.Server.Plugins.dll` from each
+project's `bin\Debug\net10.0` directory.
+
+## Server plugin
+
+`LANCommander.RecompCatalog.Plugin` is the server-side plugin. It currently contains no catalog
+functionality — it exists to prove that a plugin living in this repository can contribute a page
+to LANCommander Server. It registers an `IServerRouteAssemblyExtension` and an
+`IServerNavigationExtension`, and serves a single page at `/Plugins/RecompCatalog` that renders
+"Hello, your plugin is installed".
+
+The host contract assemblies (`LANCommander.SDK`, `LANCommander.Server.Plugins`) are referenced
+with `Private="false"`, so the plugin's output contains only its own assembly. This is required:
+`PluginLoadContext` defers those assembly names to the host's default load context so the
+contract types keep a single identity across the plugin's isolated context. Shipping copies would
+break the `IServerRouteAssemblyExtension` and `IServerNavigationExtension` registrations.
+
+Deploy it by copying the build output into a folder named after the assembly, under the server's
+`Data/Plugins` directory:
+
+```powershell
+$dest = "$env:LANCOMMANDER_ROOT\LANCommander.Server\Data\Plugins\LANCommander.RecompCatalog.Plugin"
+New-Item -ItemType Directory -Path $dest -Force
+Copy-Item LANCommander.RecompCatalog.Plugin\bin\Debug\net10.0\* $dest -Force
+```
+
+Start the server and sign in as an administrator. The sidebar gains a "Recomp Catalog" entry, and
+startup logs `Loaded plugin 'Recomp Catalog' (dev.aaronpowell.lancommander.recompcatalog)`.
+
+The navigation entry is visibility only; the page enforces the `Administrator` role itself with
+`[Authorize]`.
 
 ## Run
 
