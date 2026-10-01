@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Hex1bCatalog.Core\Hex1bCatalog.Core.csproj" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
+    <PackageReference Include="YamlDotNet" Version="16.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="LANCommander.SDK" HintPath="$(LANCommanderSdkArtifacts)\LANCommander.SDK.dll" Private="true" />
+    <Reference Include="LANCommander.Packaging" HintPath="$(LANCommanderPackagingArtifacts)\LANCommander.Packaging.dll" Private="true" />
+    <Reference Include="LANCommander.Packaging.Abstractions" HintPath="$(LANCommanderPackagingAbstractionsArtifacts)\LANCommander.Packaging.Abstractions.dll" Private="true" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Hex1bCatalog.Tests" />
+  </ItemGroup>
+
+  <Target Name="RequireLANCommanderAssemblies" BeforeTargets="ResolveReferences">
+    <Error Condition="!Exists('$(LANCommanderSdkArtifacts)\LANCommander.SDK.dll')"
+           Text="LANCommander.SDK.dll was not found. Build the pinned LANCommander source and set LANCommanderRoot. See README.md." />
+    <Error Condition="!Exists('$(LANCommanderPackagingArtifacts)\LANCommander.Packaging.dll')"
+           Text="LANCommander.Packaging.dll was not found. Build the pinned LANCommander source and set LANCommanderRoot. See README.md." />
+    <Error Condition="!Exists('$(LANCommanderPackagingAbstractionsArtifacts)\LANCommander.Packaging.Abstractions.dll')"
+           Text="LANCommander.Packaging.Abstractions.dll was not found. Build the pinned LANCommander source and set LANCommanderRoot. See README.md." />
+  </Target>
+
+</Project>

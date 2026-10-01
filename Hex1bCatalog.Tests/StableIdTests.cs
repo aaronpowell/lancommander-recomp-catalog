@@ -1,0 +1,16 @@
+using Hex1bCatalog.Core;
+
+namespace Hex1bCatalog.Tests;
+
+public class StableIdTests
+{
+    [Fact]
+    public void GeneratesStableCaseInsensitiveIds()
+    {
+        var first = StableId.Create("game:Owner/Repo:Title");
+        var second = StableId.Create(" game:owner/repo:title ");
+
+        Assert.Equal(first, second);
+        Assert.NotEqual(Guid.Empty, first);
+    }
+}
