@@ -1,5 +1,4 @@
 using System.Reflection;
-using LANCommander.SDK;
 using LANCommander.Server.Plugins;
 
 namespace LANCommander.RecompCatalog.Plugin;
@@ -18,6 +17,6 @@ internal sealed class RecompCatalogNavigationExtension : IServerNavigationExtens
     public string? Icon => "Download";
     public int Order => 100;
 
-    // Visibility only. The page enforces the same role independently via [Authorize].
-    public string? RequiredRole => Roles.Administrator;
+    // Visibility only. The server independently enforces the page's own [PluginAccess] policy.
+    public PluginAccessPolicy Access => PluginAccessPolicy.Administrator;
 }

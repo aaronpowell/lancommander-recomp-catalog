@@ -69,8 +69,9 @@ Copy-Item LANCommander.RecompCatalog.Plugin\bin\Debug\net10.0\* $dest -Force
 Start the server and sign in as an administrator. The sidebar gains a "Recomp Catalog" entry, and
 startup logs `Loaded plugin 'Recomp Catalog' (dev.aaronpowell.lancommander.recompcatalog)`.
 
-The navigation entry is visibility only; the page enforces the `Administrator` role itself with
-`[Authorize]`.
+The navigation entry only controls visibility. Access is enforced by the server from the page's
+`[PluginAccess(PluginAccessLevel.Administrator)]` declaration, and a plugin page that declares
+nothing is administrator-only by default.
 
 ## Run
 
