@@ -49,7 +49,7 @@ project's `bin\Debug\net10.0` directory.
 functionality — it exists to prove that a plugin living in this repository can contribute a page
 to LANCommander Server. It registers an `IServerRouteAssemblyExtension` and an
 `IServerNavigationExtension`, and serves a single page at `/Plugins/RecompCatalog` that renders
-"Hello, your plugin is installed".
+"Hello, your plugin is installed:".
 
 The host contract assemblies (`LANCommander.SDK`, `LANCommander.Server.Plugins`) are referenced
 with `Private="false"`, so the plugin's output contains only its own assembly. This is required:
