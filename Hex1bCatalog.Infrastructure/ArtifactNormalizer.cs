@@ -135,7 +135,7 @@ public sealed class ArtifactNormalizer(HttpClient httpClient) : IArtifactNormali
         {
             if (Path.GetExtension(asset.Name).Equals(".exe", StringComparison.OrdinalIgnoreCase))
             {
-                var safeName = Path.GetFileName(asset.Name);
+                var safeName = NormalizeEntryPath(Path.GetFileName(asset.Name));
                 var target = output.CreateEntry(safeName, CompressionLevel.Optimal);
                 await using var targetStream = target.Open();
                 await using var source = File.OpenRead(inputPath);
@@ -209,9 +209,28 @@ public sealed class ArtifactNormalizer(HttpClient httpClient) : IArtifactNormali
         var segments = normalized.Split('/', StringSplitOptions.RemoveEmptyEntries);
         if (Path.IsPathRooted(path) || segments.Any(segment => segment is "." or ".."))
             throw new InvalidDataException($"Unsafe archive path '{path}'.");
+        foreach (var segment in segments)
+            ValidateWindowsPathSegment(path, segment);
 
         return string.Join('/', segments);
     }
+
+    private static void ValidateWindowsPathSegment(string path, string segment)
+    {
+        if (segment.EndsWith('.') || segment.EndsWith(' ')
+            || segment.Any(character => character < 32 || "<>:\"|?*".Contains(character)))
+            throw new InvalidDataException($"Unsafe Windows archive path '{path}'.");
+
+        var baseName = segment.Split('.')[0];
+        if (WindowsReservedNames.Contains(baseName))
+            throw new InvalidDataException($"Reserved Windows archive path '{path}'.");
+    }
+
+    private static readonly HashSet<string> WindowsReservedNames = new(
+        ["CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5",
+         "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4",
+         "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"],
+        StringComparer.OrdinalIgnoreCase);
 
     private static void RejectSymbolicLink(ZipArchiveEntry entry)
     {

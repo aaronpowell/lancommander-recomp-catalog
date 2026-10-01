@@ -13,7 +13,7 @@ public class GitHubReleaseClientTests
         var json = File.ReadAllText(
             Path.Combine(AppContext.BaseDirectory, "Fixtures", "github-release.json"));
         var client = new GitHubReleaseClient(new HttpClient(
-            new StubHttpMessageHandler(() => new HttpResponseMessage(HttpStatusCode.OK)
+            new StubHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(json, Encoding.UTF8, "application/json"),
             })));
@@ -31,12 +31,40 @@ public class GitHubReleaseClientTests
         Assert.Equal("fixture-portable-win-x64.zip", Assert.Single(release.Assets).Name);
     }
 
+    [Fact]
+    public async Task SendsTokenOnlyOnGitHubApiRequest()
+    {
+        var json = File.ReadAllText(
+            Path.Combine(AppContext.BaseDirectory, "Fixtures", "github-release.json"));
+        var authorization = new List<string?>();
+        var httpClient = new HttpClient(new StubHttpMessageHandler(request =>
+        {
+            authorization.Add(request.Headers.Authorization?.ToString());
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(json, Encoding.UTF8, "application/json"),
+            };
+        }));
+        var client = new GitHubReleaseClient(httpClient, "secret-token");
+
+        await client.GetLatestAsync(new CatalogEntry
+        {
+            Name = "Fixture Game",
+            Repository = "fixture/game",
+            FolderName = "FixtureGame",
+        });
+        using var unrelatedResponse = await httpClient.GetAsync("https://catalog.test/index.json");
+
+        Assert.Equal("Bearer secret-token", authorization[0]);
+        Assert.Null(authorization[1]);
+    }
+
     private sealed class StubHttpMessageHandler(
-        Func<HttpResponseMessage> responseFactory) : HttpMessageHandler
+        Func<HttpRequestMessage, HttpResponseMessage> responseFactory) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken) =>
-            Task.FromResult(responseFactory());
+            Task.FromResult(responseFactory(request));
     }
 }

@@ -9,6 +9,10 @@ public class ArtifactNormalizerTests
     [InlineData("../escape.exe")]
     [InlineData("folder/../../escape.exe")]
     [InlineData("/rooted.exe")]
+    [InlineData("game.exe.")]
+    [InlineData("folder /game.exe")]
+    [InlineData("CON.exe")]
+    [InlineData("game.exe:payload")]
     public void RejectsUnsafeArchivePaths(string path)
     {
         Assert.Throws<InvalidDataException>(() => ArtifactNormalizer.NormalizeEntryPath(path));

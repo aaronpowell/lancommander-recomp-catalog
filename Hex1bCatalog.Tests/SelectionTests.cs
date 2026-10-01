@@ -32,6 +32,8 @@ public class SelectionTests
             ExecutableSelection.RequireExplicit(candidates, "other.exe"));
         Assert.Equal("bin/game.exe",
             ExecutableSelection.RequireExplicit(candidates, "BIN/GAME.EXE"));
+        Assert.Equal("bin/game.exe",
+            ExecutableSelection.RequireExplicit(candidates, @"bin\game.exe"));
     }
 
     [Fact]

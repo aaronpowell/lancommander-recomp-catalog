@@ -34,8 +34,9 @@ public static class ExecutableSelection
         if (string.IsNullOrWhiteSpace(selectedExecutable))
             throw new InvalidOperationException("Select an executable before building the LCX.");
 
+        var normalizedSelection = selectedExecutable.Replace('\\', '/');
         return candidates.SingleOrDefault(candidate =>
-                candidate.Equals(selectedExecutable, StringComparison.OrdinalIgnoreCase))
+                candidate.Equals(normalizedSelection, StringComparison.OrdinalIgnoreCase))
             ?? throw new InvalidOperationException(
                 $"'{selectedExecutable}' is not an executable candidate from the normalized artifact.");
     }

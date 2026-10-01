@@ -8,17 +8,12 @@ namespace Hex1bCatalog.Infrastructure;
 public sealed class GitHubReleaseClient : IReleaseClient
 {
     private readonly HttpClient _httpClient;
+    private readonly string? _token;
 
     public GitHubReleaseClient(HttpClient httpClient, string? token = null)
     {
         _httpClient = httpClient;
-        _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("LANCommander-Recomp-Catalog/0.1");
-        _httpClient.DefaultRequestHeaders.Accept.Add(
-            new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
-
-        if (!string.IsNullOrWhiteSpace(token))
-            _httpClient.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", token);
+        _token = token;
     }
 
     public async Task<ReleaseInfo> GetLatestAsync(
@@ -32,9 +27,16 @@ public sealed class GitHubReleaseClient : IReleaseClient
         if (parts.Length != 2)
             throw new InvalidDataException($"Repository '{entry.Repository}' must use owner/name format.");
 
-        using var response = await _httpClient.GetAsync(
-            $"https://api.github.com/repos/{parts[0]}/{parts[1]}/releases/latest",
-            cancellationToken);
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            $"https://api.github.com/repos/{parts[0]}/{parts[1]}/releases/latest");
+        request.Headers.UserAgent.ParseAdd("LANCommander-Recomp-Catalog/0.1");
+        request.Headers.Accept.Add(
+            new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+        if (!string.IsNullOrWhiteSpace(_token))
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _token);
+
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
         response.EnsureSuccessStatusCode();
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
         var release = await JsonSerializer.DeserializeAsync<GitHubRelease>(

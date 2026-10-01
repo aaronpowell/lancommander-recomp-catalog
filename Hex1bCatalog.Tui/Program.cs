@@ -52,11 +52,15 @@ try
         v.Text($"Feed: {feed}"),
         v.TextBox(search).OnTextChanged(changed =>
         {
+            if (artifact != null && File.Exists(artifact.ZipPath))
+                File.Delete(artifact.ZipPath);
+
             search = changed.NewText;
             visibleEntries = CatalogSearch.Filter(allEntries, search);
             selectedEntry = null;
             release = null;
             selectedAsset = null;
+            artifact = null;
             executable = null;
             status = $"{visibleEntries.Count} matching catalog entries.";
         }),

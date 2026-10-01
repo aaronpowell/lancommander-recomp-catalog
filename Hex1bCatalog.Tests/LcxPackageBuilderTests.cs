@@ -8,6 +8,16 @@ namespace Hex1bCatalog.Tests;
 
 public class LcxPackageBuilderTests
 {
+    [Theory]
+    [InlineData("..", "Game")]
+    [InlineData(@"..\outside", "outside")]
+    [InlineData(@"nested/folder", "nestedfolder")]
+    [InlineData("CON", "_CON")]
+    public void ProducesSafeSingleSegmentDirectoryNames(string value, string expected)
+    {
+        Assert.Equal(expected, LcxPackageBuilder.SanitizeDirectoryName(value));
+    }
+
     [Fact]
     public async Task BuildsImportableLcxWithStableIdsAndProvenance()
     {

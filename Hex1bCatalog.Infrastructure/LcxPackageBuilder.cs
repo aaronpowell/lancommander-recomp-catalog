@@ -21,9 +21,10 @@ public sealed class LcxPackageBuilder : IPackageBuilder
         var gameId = StableId.Create($"game:{repositoryKey}:{request.Entry.Name}");
         var archiveId = StableId.Create(
             $"archive:{repositoryKey}:{request.Release.Tag}:{request.Asset.Name}:{request.Artifact.Sha256}");
-        var directoryName = string.IsNullOrWhiteSpace(request.Entry.FolderName)
-            ? SanitizeDirectoryName(request.Entry.Name)
-            : request.Entry.FolderName;
+        var directoryName = SanitizeDirectoryName(
+            string.IsNullOrWhiteSpace(request.Entry.FolderName)
+                ? request.Entry.Name
+                : request.Entry.FolderName);
 
         var manifest = new Game
         {
@@ -82,6 +83,21 @@ public sealed class LcxPackageBuilder : IPackageBuilder
             + "Catalog metadata uses a Quiver-compatible feed; this project is independent of Quiver.";
     }
 
-    private static string SanitizeDirectoryName(string value) =>
-        string.Concat(value.Where(character => char.IsLetterOrDigit(character) || character is '-' or '_'));
+    internal static string SanitizeDirectoryName(string value)
+    {
+        var result = string.Concat(value.Where(
+            character => char.IsLetterOrDigit(character) || character is '-' or '_'));
+        if (string.IsNullOrWhiteSpace(result))
+            result = "Game";
+        if (result.Length > 120)
+            result = result[..120];
+
+        return WindowsReservedNames.Contains(result) ? $"_{result}" : result;
+    }
+
+    private static readonly HashSet<string> WindowsReservedNames = new(
+        ["CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5",
+         "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4",
+         "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"],
+        StringComparer.OrdinalIgnoreCase);
 }

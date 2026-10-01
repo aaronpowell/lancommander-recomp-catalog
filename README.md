@@ -58,9 +58,6 @@ dotnet run --project Hex1bCatalog.Tui -- `
   --executable bin\game.exe `
   --output .\packages
 ```
-`--build owner/repository` runs the complete pipeline with the first matching asset and
-executable; pass `--exe relative/path.exe` when an artifact contains multiple executables.
-
 Set `GITHUB_TOKEN` to increase the GitHub API rate limit. Only public repository access is
 needed. The initial prototype supports GitHub releases and Windows `.zip`/`.exe` assets.
 
