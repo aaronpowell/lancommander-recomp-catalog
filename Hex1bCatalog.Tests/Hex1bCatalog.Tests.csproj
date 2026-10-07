@@ -23,10 +23,13 @@
     <ProjectReference Include="..\Hex1bCatalog.Core\Hex1bCatalog.Core.csproj" />
     <ProjectReference Include="..\Hex1bCatalog.Infrastructure\Hex1bCatalog.Infrastructure.csproj" />
     <ProjectReference Include="..\Hex1bCatalog.Providers\Hex1bCatalog.Providers.csproj" />
+    <ProjectReference Include="..\LANCommander.RecompCatalog.Plugin\LANCommander.RecompCatalog.Plugin.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <Reference Include="LANCommander.SDK" HintPath="$(LANCommanderSdkArtifacts)\LANCommander.SDK.dll" Private="true" />
+    <Reference Include="LANCommander.Server.Plugins" HintPath="$(LANCommanderServerPluginsArtifacts)\LANCommander.Server.Plugins.dll" Private="true" />
+    <Reference Include="LANCommander.Server.UI" HintPath="$(LANCommanderServerUIArtifacts)\LANCommander.Server.UI.dll" Private="true" />
   </ItemGroup>
 
   <ItemGroup>

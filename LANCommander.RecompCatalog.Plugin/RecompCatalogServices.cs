@@ -21,7 +21,7 @@ internal sealed record RecompCatalogSettings(string? FeedUrl)
 
 internal sealed class RecompCatalogHttpClient : IDisposable
 {
-    internal RecompCatalogHttpClient()
+    public RecompCatalogHttpClient()
     {
         Client = new HttpClient(new HttpClientHandler
         {

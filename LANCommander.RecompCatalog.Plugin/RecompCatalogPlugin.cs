@@ -32,7 +32,8 @@ public sealed class RecompCatalogPlugin : IPlugin
         services.AddSingleton<IServerRouteAssemblyExtension>(
             new RecompCatalogRouteAssemblyExtension(typeof(RecompCatalogPlugin).Assembly));
 
-        services.AddSingleton<IServerNavigationExtension, RecompCatalogNavigationExtension>();
+        services.AddSingleton<IServerNavigationExtension>(
+            new RecompCatalogNavigationExtension());
 
         services.AddSingleton(serviceProvider =>
             RecompCatalogSettings.FromConfiguration(
