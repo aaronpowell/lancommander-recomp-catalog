@@ -26,8 +26,9 @@ not a trust guarantee: administrators must review upstream projects and release 
 The prototype intentionally references locally built LANCommander DLLs until the packaging and
 plugin APIs are distributed as stable packages. CI pins
 [`aaronpowell/LANCommander`](https://github.com/aaronpowell/LANCommander) at
-`3a8cec3f`, which carries the current integration-boundary server plugin access-policy and
-Server.UI contracts that are not upstream yet.
+`3a8cec3ff5cdf7b3c71d5042117eb168865c1c0e`, which carries the current
+integration-boundary server plugin access-policy and Server.UI contracts that are not upstream
+yet.
 
 ```powershell
 $env:LANCOMMANDER_ROOT = "D:\copilot-app\copilot-worktrees\LANCommander\aaronpowell-potential-funicular"

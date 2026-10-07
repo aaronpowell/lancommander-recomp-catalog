@@ -17,7 +17,7 @@ jobs:
           # so this pins the fork commit that carries them. Repoint at LANCommander/LANCommander
           # once they merge.
           repository: aaronpowell/LANCommander
-          ref: 3a8cec3f
+          ref: 3a8cec3ff5cdf7b3c71d5042117eb168865c1c0e
           path: lancommander
 
       - uses: actions/setup-dotnet@v4
