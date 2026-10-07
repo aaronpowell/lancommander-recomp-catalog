@@ -29,6 +29,7 @@ jobs:
           dotnet build .\lancommander\LANCommander.SDK\LANCommander.SDK.csproj -c Debug -f net10.0
           dotnet build .\lancommander\LANCommander.Packaging\LANCommander.Packaging.csproj -c Debug -f net10.0
           dotnet build .\lancommander\LANCommander.Server.Plugins\LANCommander.Server.Plugins.csproj -c Debug
+          dotnet build .\lancommander\LANCommander.Server.UI\LANCommander.Server.UI.csproj -c Debug
 
       - name: Build and test prototype
         shell: pwsh

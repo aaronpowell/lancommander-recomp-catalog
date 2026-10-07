@@ -3,29 +3,30 @@
 
 <PageTitle>Recomp Catalog</PageTitle>
 
-<h1>Hello, your plugin is installed:</h1>
+<PageHeader Title="Recomp Catalog" Subtitle="LANCommander server plugin" />
 
-<p>
-    This page is served from an assembly loaded out of the server's <code>Plugins</code> folder,
-    which confirms plugin discovery, the route assembly contract, and navigation registration all work.
-</p>
+<PageContent>
+    <Alert Info Title="Plugin UI is connected">
+        This page is rendered with controls from <Typography Code>LANCommander.Server.UI.Controls</Typography>.
+        Catalog feed integration is intentionally not part of this phase.
+    </Alert>
 
-<dl>
-    <dt>Plugin</dt>
-    <dd>@_plugin.Name v@_plugin.Version by @_plugin.Author</dd>
+    <Card Title="Plugin status" Subtitle="Host-provided UI assembly">
+        <dl>
+            <dt>Plugin</dt>
+            <dd>@_plugin.Name v@_plugin.Version by @_plugin.Author</dd>
 
-    <dt>Plugin id</dt>
-    <dd>@_plugin.Id</dd>
+            <dt>Plugin id</dt>
+            <dd><Typography Code>@_plugin.Id</Typography></dd>
 
-    <dt>Assembly</dt>
-    <dd>@_assembly.GetName().Name</dd>
+            <dt>Assembly</dt>
+            <dd><Typography Code>@_assembly.GetName().Name</Typography></dd>
 
-    <dt>Load context</dt>
-    <dd>@(AssemblyLoadContext.GetLoadContext(_assembly)?.Name ?? "default")</dd>
-
-    <dt>Rendered at</dt>
-    <dd>@DateTimeOffset.Now.ToString("u")</dd>
-</dl>
+            <dt>Load context</dt>
+            <dd><Typography Code>@(AssemblyLoadContext.GetLoadContext(_assembly)?.Name ?? "default")</Typography></dd>
+        </dl>
+    </Card>
+</PageContent>
 
 @code {
     static readonly RecompCatalogPlugin _plugin = new();

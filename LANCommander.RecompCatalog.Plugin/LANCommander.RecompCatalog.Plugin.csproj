@@ -21,6 +21,7 @@
   <ItemGroup>
     <Reference Include="LANCommander.SDK" HintPath="$(LANCommanderSdkArtifacts)\LANCommander.SDK.dll" Private="false" />
     <Reference Include="LANCommander.Server.Plugins" HintPath="$(LANCommanderServerPluginsArtifacts)\LANCommander.Server.Plugins.dll" Private="false" />
+    <Reference Include="LANCommander.Server.UI" HintPath="$(LANCommanderServerUIArtifacts)\LANCommander.Server.UI.dll" Private="false" />
   </ItemGroup>
 
   <Target Name="RequireLANCommanderPluginAssemblies" BeforeTargets="ResolveReferences">
@@ -28,6 +29,8 @@
            Text="LANCommander.SDK.dll was not found. Build the pinned LANCommander source and set LANCommanderRoot. See README.md." />
     <Error Condition="!Exists('$(LANCommanderServerPluginsArtifacts)\LANCommander.Server.Plugins.dll')"
            Text="LANCommander.Server.Plugins.dll was not found. Build the pinned LANCommander source and set LANCommanderRoot. See README.md." />
+    <Error Condition="!Exists('$(LANCommanderServerUIArtifacts)\LANCommander.Server.UI.dll')"
+           Text="LANCommander.Server.UI.dll was not found. Build LANCommander.Server.UI and set LANCommanderRoot. See README.md." />
   </Target>
 
 </Project>

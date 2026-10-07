@@ -34,28 +34,35 @@ $env:LANCOMMANDER_ROOT = "D:\copilot-app\copilot-worktrees\LANCommander\aaronpow
 dotnet build "$env:LANCOMMANDER_ROOT\LANCommander.SDK\LANCommander.SDK.csproj" -f net10.0
 dotnet build "$env:LANCOMMANDER_ROOT\LANCommander.Packaging\LANCommander.Packaging.csproj" -f net10.0
 dotnet build "$env:LANCOMMANDER_ROOT\LANCommander.Server.Plugins\LANCommander.Server.Plugins.csproj"
+dotnet build "$env:LANCOMMANDER_ROOT\LANCommander.Server.UI\LANCommander.Server.UI.csproj"
 dotnet build Hex1bCatalog.slnx
 dotnet test Hex1bCatalog.Tests\Hex1bCatalog.Tests.csproj
 ```
 
 You can also pass `-p:LANCommanderRoot=D:\src\LANCommander`. The build resolves
 `LANCommander.SDK.dll`, `LANCommander.Packaging.dll`,
-`LANCommander.Packaging.Abstractions.dll`, and `LANCommander.Server.Plugins.dll` from each
-project's `bin\Debug\net10.0` directory.
+`LANCommander.Packaging.Abstractions.dll`, `LANCommander.Server.Plugins.dll`, and
+`LANCommander.Server.UI.dll` from each project's `bin\Debug\net10.0` directory.
 
 ## Server plugin
 
 `LANCommander.RecompCatalog.Plugin` is the server-side plugin. It currently contains no catalog
 functionality — it exists to prove that a plugin living in this repository can contribute a page
 to LANCommander Server. It registers an `IServerRouteAssemblyExtension` and an
-`IServerNavigationExtension`, and serves a single page at `/Plugins/RecompCatalog` that renders
-"Hello, your plugin is installed:".
+`IServerNavigationExtension`, and serves a single server-styled page at
+`/Plugins/RecompCatalog`.
 
-The host contract assemblies (`LANCommander.SDK`, `LANCommander.Server.Plugins`) are referenced
-with `Private="false"`, so the plugin's output contains only its own assembly. This is required:
-`PluginLoadContext` defers those assembly names to the host's default load context so the
-contract types keep a single identity across the plugin's isolated context. Shipping copies would
-break the `IServerRouteAssemblyExtension` and `IServerNavigationExtension` registrations.
+The host contract and UI assemblies (`LANCommander.SDK`, `LANCommander.Server.Plugins`, and
+`LANCommander.Server.UI`) are referenced with `Private="false"`, so the plugin's output contains
+only its own assembly. This is required: the server must provide the already-loaded copies so
+contract types and Razor controls keep a single identity across the plugin's isolated load
+context. Shipping copies would break plugin registration or create a second UI component type
+unusable by the host.
+
+`LANCommander.Server.UI` is not published as a NuGet package yet. The explicit assembly reference
+is a temporary development bridge; set `LANCommanderRoot` (or `LANCOMMANDER_ROOT`) to a built
+LANCommander checkout. The plugin does not copy Server.UI, Radzen, or any other server UI
+dependency into its deployment folder.
 
 Deploy it by copying the build output into a folder named after the assembly, under the server's
 `Data/Plugins` directory:
@@ -67,11 +74,21 @@ Copy-Item LANCommander.RecompCatalog.Plugin\bin\Debug\net10.0\* $dest -Force
 ```
 
 Start the server and sign in as an administrator. The sidebar gains a "Recomp Catalog" entry, and
-startup logs `Loaded plugin 'Recomp Catalog' (dev.aaronpowell.lancommander.recompcatalog)`.
+startup logs `Loaded plugin 'Recomp Catalog' (dev.aaronpowell.lancommander.recompcatalog)`. The
+page at `/Plugins/RecompCatalog` renders `PageHeader`, `PageContent`, `Alert`, `Card`, and
+`Typography` from `LANCommander.Server.UI.Controls`.
 
 The navigation entry only controls visibility. Access is enforced by the server from the page's
 `[PluginAccess(PluginAccessLevel.Administrator)]` declaration, and a plugin page that declares
 nothing is administrator-only by default.
+
+### Host load-context prerequisite
+
+The current LANCommander plugin load context must treat `LANCommander.Server.UI` as a shared
+host assembly, alongside `LANCommander.Server.Plugins`, so the plugin resolves the server's
+already-loaded UI assembly instead of loading a second copy. This repository intentionally does
+not modify the LANCommander host; update that host-side shared-assembly list before deploying this
+plugin to a server build whose load context does not already share `LANCommander.Server.UI`.
 
 ## Run
 
