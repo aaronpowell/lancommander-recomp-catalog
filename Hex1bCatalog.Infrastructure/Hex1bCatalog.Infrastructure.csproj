@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Hex1bCatalog.Core\Hex1bCatalog.Core.csproj" />
+    <ProjectReference Include="..\Hex1bCatalog.Providers\Hex1bCatalog.Providers.csproj" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
     <PackageReference Include="YamlDotNet" Version="16.3.0" />
   </ItemGroup>

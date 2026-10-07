@@ -13,15 +13,21 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Hex1bCatalog.Core\Hex1bCatalog.Core.csproj" />
+    <ProjectReference Include="..\Hex1bCatalog.Providers\Hex1bCatalog.Providers.csproj" />
+  </ItemGroup>
+
   <!--
-    Host contract assemblies are compile-time only (Private="false"). The server already has them
-    loaded, and PluginLoadContext defers these names to the default context so the contract types
-    keep a single identity across the plugin's load context. Shipping copies would break that.
+    Host contract and UI assemblies are compile-time only (Private="false"). The server already
+    has them loaded, so the plugin must not ship private copies with conflicting type identities.
   -->
   <ItemGroup>
     <Reference Include="LANCommander.SDK" HintPath="$(LANCommanderSdkArtifacts)\LANCommander.SDK.dll" Private="false" />
     <Reference Include="LANCommander.Server.Plugins" HintPath="$(LANCommanderServerPluginsArtifacts)\LANCommander.Server.Plugins.dll" Private="false" />
     <Reference Include="LANCommander.Server.UI" HintPath="$(LANCommanderServerUIArtifacts)\LANCommander.Server.UI.dll" Private="false" />
+    <Reference Include="LANCommander.Packaging" HintPath="$(LANCommanderPackagingArtifacts)\LANCommander.Packaging.dll" Private="false" />
+    <Reference Include="LANCommander.Packaging.Abstractions" HintPath="$(LANCommanderPackagingAbstractionsArtifacts)\LANCommander.Packaging.Abstractions.dll" Private="false" />
   </ItemGroup>
 
   <Target Name="RequireLANCommanderPluginAssemblies" BeforeTargets="ResolveReferences">
@@ -31,6 +37,10 @@
            Text="LANCommander.Server.Plugins.dll was not found. Build the pinned LANCommander source and set LANCommanderRoot. See README.md." />
     <Error Condition="!Exists('$(LANCommanderServerUIArtifacts)\LANCommander.Server.UI.dll')"
            Text="LANCommander.Server.UI.dll was not found. Build LANCommander.Server.UI and set LANCommanderRoot. See README.md." />
+    <Error Condition="!Exists('$(LANCommanderPackagingArtifacts)\LANCommander.Packaging.dll')"
+           Text="LANCommander.Packaging.dll was not found. Build the pinned LANCommander source and set LANCommanderRoot. See README.md." />
+    <Error Condition="!Exists('$(LANCommanderPackagingAbstractionsArtifacts)\LANCommander.Packaging.Abstractions.dll')"
+           Text="LANCommander.Packaging.Abstractions.dll was not found. Build the pinned LANCommander source and set LANCommanderRoot. See README.md." />
   </Target>
 
 </Project>

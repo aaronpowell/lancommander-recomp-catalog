@@ -47,18 +47,57 @@ You can also pass `-p:LANCommanderRoot=D:\src\LANCommander`. The build resolves
 
 ## Server plugin
 
-`LANCommander.RecompCatalog.Plugin` is the server-side plugin. It currently contains no catalog
-functionality — it exists to prove that a plugin living in this repository can contribute a page
-to LANCommander Server. It registers an `IServerRouteAssemblyExtension` and an
-`IServerNavigationExtension`, and serves a single server-styled page at
-`/Plugins/RecompCatalog`.
+`LANCommander.RecompCatalog.Plugin` is the server-side plugin. It registers an
+`IServerRouteAssemblyExtension` and an `IServerNavigationExtension`, and serves an
+administrator-only catalog browser at `/Plugins/RecompCatalog`.
 
-The host contract and UI assemblies (`LANCommander.SDK`, `LANCommander.Server.Plugins`, and
-`LANCommander.Server.UI`) are referenced with `Private="false"`, so the plugin's output contains
-only its own assembly. This is required: the server must provide the already-loaded copies so
-contract types and Razor controls keep a single identity across the plugin's isolated load
-context. Shipping copies would break plugin registration or create a second UI component type
-unusable by the host.
+The browser loads a Quiver-compatible catalog index, maps its lists into a searchable view, and
+supports deterministic tag, original-platform, and target-platform filters when those facets are
+present in the feed. Selecting an entry shows its catalog provenance, repository, project, tags,
+and platform information. "Import preview" resolves the latest GitHub release and lists selectable
+Windows ZIP/EXE assets without downloading them.
+
+The plugin is independent of Quiver and does not bundle a catalog snapshot. Quiver inspired the
+workflow, and compatible public feeds are treated as untrusted remote input: invalid URLs, HTTP
+errors, malformed documents, empty feeds, and release lookup failures are displayed to the
+administrator rather than silently replaced with fallback data.
+
+### Catalog configuration
+
+The established prototype feed is used by default:
+
+```text
+https://raw.githubusercontent.com/tgeorgiadis/quiver-community-app-catalog/main/index.json
+```
+
+Override it in LANCommander configuration with:
+
+```json
+{
+  "Plugins": {
+    "RecompCatalog": {
+      "FeedUrl": "https://catalog.example.test/index.json"
+    }
+  }
+}
+```
+
+The URL must be absolute HTTPS. Set `Plugins:RecompCatalog:FeedUrl` to an empty value to show the
+explicit unconfigured state. GitHub release preview uses `GH_TOKEN` or `GITHUB_TOKEN` when present,
+matching the prototype conventions; unauthenticated public-repository lookup remains supported at
+GitHub's lower rate limit.
+
+The current import boundary is intentionally preview-only. Final confirmation stays disabled until
+the plugin can hand the selected release asset through artifact download/normalization, executable
+selection, LCX creation, and LANCommander server game/archive ingestion without faking success.
+
+The host contract, UI, and packaging assemblies (`LANCommander.SDK`,
+`LANCommander.Server.Plugins`, `LANCommander.Server.UI`, `LANCommander.Packaging`, and
+`LANCommander.Packaging.Abstractions`) are referenced with `Private="false"`. Plugin output
+contains the plugin plus its private `Hex1bCatalog.Core` and `Hex1bCatalog.Providers` assemblies,
+but no host or Radzen binaries. This is required: the server must provide the already-loaded
+copies so contract types and Razor controls keep a single identity across the plugin's isolated
+load context.
 
 `LANCommander.Server.UI` is not published as a NuGet package yet. The explicit assembly reference
 is a temporary development bridge; set `LANCommanderRoot` (or `LANCOMMANDER_ROOT`) to a built
@@ -76,8 +115,8 @@ Copy-Item LANCommander.RecompCatalog.Plugin\bin\Debug\net10.0\* $dest -Force
 
 Start the server and sign in as an administrator. The sidebar gains a "Recomp Catalog" entry, and
 startup logs `Loaded plugin 'Recomp Catalog' (dev.aaronpowell.lancommander.recompcatalog)`. The
-page at `/Plugins/RecompCatalog` renders `PageHeader`, `PageContent`, `Alert`, `Card`, and
-`Typography` from `LANCommander.Server.UI.Controls`.
+page at `/Plugins/RecompCatalog` renders its loading, failure, empty, filter, details, and import
+preview states with `LANCommander.Server.UI.Controls`.
 
 The navigation entry only controls visibility. Access is enforced by the server from the page's
 `[PluginAccess(PluginAccessLevel.Administrator)]` declaration, and a plugin page that declares

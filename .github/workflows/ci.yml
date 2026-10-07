@@ -42,3 +42,20 @@ jobs:
         run: |
           dotnet build .\Hex1bCatalog.slnx -c Debug -p:LANCommanderRoot="$env:GITHUB_WORKSPACE\lancommander"
           dotnet test .\Hex1bCatalog.Tests\Hex1bCatalog.Tests.csproj -c Debug --no-build -p:LANCommanderRoot="$env:GITHUB_WORKSPACE\lancommander"
+
+      - name: Verify plugin does not ship host assemblies
+        shell: pwsh
+        run: |
+          $output = ".\LANCommander.RecompCatalog.Plugin\bin\Debug\net10.0"
+          $forbidden = @(
+            "LANCommander.SDK.dll",
+            "LANCommander.Server.Plugins.dll",
+            "LANCommander.Server.UI.dll",
+            "LANCommander.Packaging.dll",
+            "LANCommander.Packaging.Abstractions.dll"
+          )
+          $copied = $forbidden | Where-Object { Test-Path (Join-Path $output $_) }
+          $copied += Get-ChildItem $output -Filter "Radzen*.dll" | Select-Object -ExpandProperty Name
+          if ($copied) {
+            throw "Plugin output contains host assemblies: $($copied -join ', ')"
+          }

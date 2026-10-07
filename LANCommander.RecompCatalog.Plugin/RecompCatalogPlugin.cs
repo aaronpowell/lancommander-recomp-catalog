@@ -1,6 +1,9 @@
+using Hex1bCatalog.Core;
+using Hex1bCatalog.Infrastructure;
 using LANCommander.RecompCatalog.Plugin;
 using LANCommander.SDK.Plugins;
 using LANCommander.Server.Plugins;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -12,9 +15,8 @@ using Microsoft.Extensions.Logging;
 namespace LANCommander.RecompCatalog.Plugin;
 
 /// <summary>
-/// Smoke-test entry point. Contributes a single routable page and a navigation entry so the
-/// plugin load context, route assembly, and navigation contracts can be verified end to end
-/// before any catalog functionality is layered on.
+/// Server plugin entry point for browsing compatible recompilation catalogs and previewing
+/// GitHub release assets before a future import workflow is confirmed.
 /// </summary>
 public sealed class RecompCatalogPlugin : IPlugin
 {
@@ -22,7 +24,7 @@ public sealed class RecompCatalogPlugin : IPlugin
 
     public string Id => PluginId;
     public string Name => "Recomp Catalog";
-    public string Version => "0.1.0";
+    public string Version => "0.2.0";
     public string Author => "Aaron Powell";
 
     public void ConfigureServices(IServiceCollection services)
@@ -31,6 +33,19 @@ public sealed class RecompCatalogPlugin : IPlugin
             new RecompCatalogRouteAssemblyExtension(typeof(RecompCatalogPlugin).Assembly));
 
         services.AddSingleton<IServerNavigationExtension, RecompCatalogNavigationExtension>();
+
+        services.AddSingleton(serviceProvider =>
+            RecompCatalogSettings.FromConfiguration(
+                serviceProvider.GetRequiredService<IConfiguration>()));
+        services.AddSingleton<RecompCatalogHttpClient>();
+        services.AddSingleton<ICatalogClient>(serviceProvider =>
+            new CatalogClient(
+                serviceProvider.GetRequiredService<RecompCatalogHttpClient>().Client));
+        services.AddSingleton<IReleaseClient>(serviceProvider =>
+            new GitHubReleaseClient(
+                serviceProvider.GetRequiredService<RecompCatalogHttpClient>().Client,
+                GitHubAuthentication.FromEnvironment().Token));
+        services.AddSingleton<CatalogBrowserService>();
     }
 
     public Task InitializeAsync(PluginContext context, CancellationToken cancellationToken)

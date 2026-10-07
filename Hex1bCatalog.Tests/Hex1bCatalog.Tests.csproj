@@ -22,6 +22,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Hex1bCatalog.Core\Hex1bCatalog.Core.csproj" />
     <ProjectReference Include="..\Hex1bCatalog.Infrastructure\Hex1bCatalog.Infrastructure.csproj" />
+    <ProjectReference Include="..\Hex1bCatalog.Providers\Hex1bCatalog.Providers.csproj" />
   </ItemGroup>
 
   <ItemGroup>

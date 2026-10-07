@@ -1,34 +1,410 @@
 @page "/Plugins/RecompCatalog"
 @attribute [PluginAccess(PluginAccessLevel.Administrator)]
+@implements IAsyncDisposable
+@inject CatalogBrowserService Browser
+@inject RecompCatalogSettings Settings
 
 <PageTitle>Recomp Catalog</PageTitle>
 
-<PageHeader Title="Recomp Catalog" Subtitle="LANCommander server plugin" />
+<PageHeader Title="Recomp Catalog" Subtitle="Browse compatible community recompilation feeds">
+    <Extra>
+        <Button Icon="IconType.ArrowClockwise" OnClick="ReloadAsync">
+            Reload
+        </Button>
+    </Extra>
+</PageHeader>
 
 <PageContent>
-    <Alert Info Title="Plugin UI is connected">
-        This page is rendered with controls from <Typography Code>LANCommander.Server.UI.Controls</Typography>.
-        Catalog feed integration is intentionally not part of this phase.
+    <Alert Info Title="Independent catalog browser">
+        This plugin is independent of Quiver. It consumes a compatible public feed as untrusted
+        remote data and does not bundle a catalog snapshot.
     </Alert>
 
-    <Card Title="Plugin status" Subtitle="Host-provided UI assembly">
-        <dl>
-            <dt>Plugin</dt>
-            <dd>@_plugin.Name v@_plugin.Version by @_plugin.Author</dd>
+    @if (_catalog.Status == CatalogBrowserStatus.Loading)
+    {
+        <Card>
+            <Spin Tip="Loading recomp catalog..." />
+        </Card>
+    }
+    else if (_catalog.Status == CatalogBrowserStatus.Unconfigured)
+    {
+        <Result Warning
+                Title="Catalog feed is not configured"
+                SubTitle="@($"Set {RecompCatalogSettings.FeedConfigurationKey} to an HTTPS catalog index URL, then reload.")" />
+    }
+    else if (_catalog.Status == CatalogBrowserStatus.Failed)
+    {
+        <Alert Danger Title="Catalog load failed">
+            <div>@_catalog.ErrorMessage</div>
+            <Button Small Icon="IconType.ArrowClockwise" OnClick="ReloadAsync" Style="margin-top: 8px">
+                Retry
+            </Button>
+        </Alert>
+    }
+    else if (_catalog.Status == CatalogBrowserStatus.Empty)
+    {
+        <Empty Title="The catalog is empty"
+               Description="The configured feed loaded successfully but did not contain any usable entries." />
+    }
+    else
+    {
+        <Card Title="Filters" Subtitle="@($"{_filtered.Count:N0} of {_catalog.Entries.Count:N0} entries")">
+            <Row Gap="Gap.Medium" VerticalGap="Gap.Medium">
+                <Column Xs="24" Md="12" Lg="8">
+                    <TextInput Icon="IconType.MagnifyingGlass"
+                               Immediate
+                               Value="@_query"
+                               ValueChanged="SearchChanged"
+                               Placeholder="Search title, project, repository, or tag" />
+                </Column>
+                <Column Xs="24" Md="12" Lg="6">
+                    <Select TValue="string"
+                            Items="@TagOptions"
+                            Value="@_tag"
+                            ValueChanged="TagChanged"
+                            Searchable />
+                </Column>
+                <Column Xs="24" Md="12" Lg="5">
+                    <Select TValue="string"
+                            Items="@OriginalPlatformOptions"
+                            Value="@_originalPlatform"
+                            ValueChanged="OriginalPlatformChanged" />
+                </Column>
+                @if (_catalog.TargetPlatforms.Count > 0)
+                {
+                    <Column Xs="24" Md="12" Lg="5">
+                        <Select TValue="string"
+                                Items="@TargetPlatformOptions"
+                                Value="@_targetPlatform"
+                                ValueChanged="TargetPlatformChanged" />
+                    </Column>
+                }
+            </Row>
+        </Card>
 
-            <dt>Plugin id</dt>
-            <dd><Typography Code>@_plugin.Id</Typography></dd>
+        @if (_filtered.Count == 0)
+        {
+            <Empty Title="No matching recomp projects"
+                   Description="Clear or change the current search and filters." />
+        }
+        else
+        {
+            <Row Gap="Gap.Medium" VerticalGap="Gap.Medium">
+                <Column Xs="24" Lg="14">
+                    <Card Title="Catalog entries" Count="@_filtered.Count">
+                        @foreach (var entry in _filtered)
+                        {
+                            <Card Small Borderless
+                                  Title="@entry.DisplayName"
+                                  Subtitle="@entry.CatalogEntry.Repository"
+                                  Style="margin-bottom: 8px">
+                                <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px">
+                                    <Tag Caps Small>@entry.OriginalPlatform</Tag>
+                                    @foreach (var tag in entry.CatalogEntry.Tags.Take(6))
+                                    {
+                                        <Tag>@tag</Tag>
+                                    }
+                                </div>
+                                <Button Small
+                                        Primary="@(ReferenceEquals(_selected, entry))"
+                                        OnClick="() => SelectEntry(entry)">
+                                    View details
+                                </Button>
+                            </Card>
+                        }
+                    </Card>
+                </Column>
 
-            <dt>Assembly</dt>
-            <dd><Typography Code>@_assembly.GetName().Name</Typography></dd>
+                <Column Xs="24" Lg="10">
+                    @if (_selected is null)
+                    {
+                        <Card Title="Project details">
+                            <Empty Small
+                                   Title="Select a project"
+                                   Description="Choose a catalog entry to inspect its provenance and release preview." />
+                        </Card>
+                    }
+                    else
+                    {
+                        <Card Title="@_selected.DisplayName" Subtitle="@_selected.CatalogEntry.Project">
+                            <dl>
+                                <dt>Original platform</dt>
+                                <dd>@_selected.OriginalPlatform</dd>
 
-            <dt>Load context</dt>
-            <dd><Typography Code>@(AssemblyLoadContext.GetLoadContext(_assembly)?.Name ?? "default")</Typography></dd>
-        </dl>
-    </Card>
+                                <dt>Target platforms</dt>
+                                <dd>@DisplayTargets(_selected)</dd>
+
+                                <dt>Repository provider</dt>
+                                <dd>@RepositoryProvider(_selected)</dd>
+
+                                <dt>Repository</dt>
+                                <dd><Typography Code>@_selected.CatalogEntry.Repository</Typography></dd>
+
+                                <dt>Feed provenance</dt>
+                                <dd><Typography Code>@_selected.SourceLocation</Typography></dd>
+
+                                <dt>Release asset filter</dt>
+                                <dd>@(_selected.CatalogEntry.ReleaseAssetFilter ?? "None")</dd>
+                            </dl>
+
+                            <div style="display: flex; flex-wrap: wrap; gap: 8px">
+                                @if (_selected.RepositoryUrl is not null)
+                                {
+                                    <Button Href="@_selected.RepositoryUrl.ToString()"
+                                            NewTab
+                                            Icon="IconType.GithubLogo">
+                                        Open repository
+                                    </Button>
+                                }
+                                <Button Primary
+                                        Icon="IconType.Package"
+                                        Disabled="@(!_selected.CatalogEntry.IsGitHub)"
+                                        Loading="@(_preview?.Status == ImportPreviewStatus.Loading)"
+                                        OnClick="OpenPreviewAsync">
+                                    Import preview
+                                </Button>
+                            </div>
+
+                            @if (!_selected.CatalogEntry.IsGitHub)
+                            {
+                                <Alert Warning Title="Preview unavailable" Style="margin-top: 12px">
+                                    Release preview currently supports GitHub repositories only.
+                                </Alert>
+                            }
+                        </Card>
+
+                        @if (_preview is not null)
+                        {
+                            <Card Title="Import preview" Subtitle="No binaries have been downloaded" Style="margin-top: 16px">
+                                @if (_preview.Status == ImportPreviewStatus.Loading)
+                                {
+                                    <Spin Tip="Resolving the latest release metadata..." />
+                                }
+                                else if (_preview.Status is ImportPreviewStatus.Failed or ImportPreviewStatus.Unsupported)
+                                {
+                                    <Alert Danger Title="Release preview failed">
+                                        @_preview.Message
+                                    </Alert>
+                                }
+                                else if (_preview.Release is not null)
+                                {
+                                    <dl>
+                                        <dt>Release</dt>
+                                        <dd>@_preview.Release.Name</dd>
+
+                                        <dt>Tag</dt>
+                                        <dd><Typography Code>@_preview.Release.Tag</Typography></dd>
+
+                                        <dt>Published</dt>
+                                        <dd>@DisplayDate(_preview.Release.PublishedAt)</dd>
+
+                                        <dt>Selectable Windows assets</dt>
+                                        <dd>@_preview.Release.Assets.Count</dd>
+                                    </dl>
+
+                                    @foreach (var asset in _preview.Release.Assets)
+                                    {
+                                        <Card Small Borderless
+                                              Title="@asset.Name"
+                                              Subtitle="@FormatSize(asset.Size)"
+                                              Style="margin-bottom: 8px" />
+                                    }
+
+                                    <Alert Warning Title="Confirmation is not available yet">
+                                        The browser can safely resolve release metadata, but a true import still needs
+                                        server-side game creation plus artifact download, normalization, executable
+                                        selection, and LCX ingestion. No success is reported until those boundaries exist.
+                                    </Alert>
+                                    <Button Primary Disabled Icon="IconType.Download">Confirm import</Button>
+                                }
+                            </Card>
+                        }
+                    }
+                </Column>
+            </Row>
+        }
+    }
 </PageContent>
 
 @code {
-    static readonly RecompCatalogPlugin _plugin = new();
-    static readonly System.Reflection.Assembly _assembly = typeof(RecompCatalogPlugin).Assembly;
+    readonly CancellationTokenSource _lifetime = new();
+    CancellationTokenSource? _operation;
+    CatalogBrowserResult _catalog = new(
+        CatalogBrowserStatus.Loading,
+        null,
+        [],
+        [],
+        [],
+        []);
+    IReadOnlyList<CatalogBrowserEntry> _filtered = [];
+    CatalogBrowserEntry? _selected;
+    ImportPreview? _preview;
+    string _query = "";
+    string _tag = "";
+    string _originalPlatform = "";
+    string _targetPlatform = "";
+
+    IEnumerable<SelectItem<string>> TagOptions =>
+        Options("All tags", _catalog.Tags);
+
+    IEnumerable<SelectItem<string>> OriginalPlatformOptions =>
+        Options("All original platforms", _catalog.OriginalPlatforms);
+
+    IEnumerable<SelectItem<string>> TargetPlatformOptions =>
+        Options("All target platforms", _catalog.TargetPlatforms);
+
+    protected override Task OnInitializedAsync() => ReloadAsync();
+
+    async Task ReloadAsync()
+    {
+        var operation = BeginOperation();
+        _catalog = new CatalogBrowserResult(
+            CatalogBrowserStatus.Loading,
+            null,
+            [],
+            [],
+            [],
+            []);
+        _selected = null;
+        _preview = null;
+
+        try
+        {
+            _catalog = await Browser.LoadAsync(Settings.FeedUrl, operation.Token);
+            ClampFacetFilters();
+            ApplyFilter();
+        }
+        catch (OperationCanceledException) when (operation.IsCancellationRequested)
+        {
+        }
+        finally
+        {
+            CompleteOperation(operation);
+        }
+    }
+
+    void SearchChanged(string value)
+    {
+        _query = value;
+        ApplyFilter();
+    }
+
+    void TagChanged(string value)
+    {
+        _tag = value;
+        ApplyFilter();
+    }
+
+    void OriginalPlatformChanged(string value)
+    {
+        _originalPlatform = value;
+        ApplyFilter();
+    }
+
+    void TargetPlatformChanged(string value)
+    {
+        _targetPlatform = value;
+        ApplyFilter();
+    }
+
+    void ApplyFilter()
+    {
+        _filtered = CatalogBrowserService.ApplyFilter(
+            _catalog.Entries,
+            new CatalogBrowserFilter(_query, _tag, _originalPlatform, _targetPlatform));
+
+        if (_selected is not null && !_filtered.Contains(_selected))
+        {
+            _operation?.Cancel();
+            _selected = null;
+            _preview = null;
+        }
+    }
+
+    void SelectEntry(CatalogBrowserEntry entry)
+    {
+        _operation?.Cancel();
+        _selected = entry;
+        _preview = null;
+    }
+
+    async Task OpenPreviewAsync()
+    {
+        if (_selected is null)
+            return;
+
+        var entry = _selected;
+        var operation = BeginOperation();
+        _preview = new ImportPreview(ImportPreviewStatus.Loading, entry);
+
+        try
+        {
+            var preview = await Browser.PreviewImportAsync(entry, operation.Token);
+            if (ReferenceEquals(_selected, entry))
+                _preview = preview;
+        }
+        catch (OperationCanceledException) when (operation.IsCancellationRequested)
+        {
+        }
+        finally
+        {
+            CompleteOperation(operation);
+        }
+    }
+
+    CancellationTokenSource BeginOperation()
+    {
+        _operation?.Cancel();
+        _operation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        return _operation;
+    }
+
+    void CompleteOperation(CancellationTokenSource operation)
+    {
+        if (ReferenceEquals(_operation, operation))
+            _operation = null;
+
+        operation.Dispose();
+    }
+
+    void ClampFacetFilters()
+    {
+        if (!_catalog.Tags.Contains(_tag, StringComparer.OrdinalIgnoreCase))
+            _tag = "";
+        if (!_catalog.OriginalPlatforms.Contains(_originalPlatform, StringComparer.OrdinalIgnoreCase))
+            _originalPlatform = "";
+        if (!_catalog.TargetPlatforms.Contains(_targetPlatform, StringComparer.OrdinalIgnoreCase))
+            _targetPlatform = "";
+    }
+
+    static IEnumerable<SelectItem<string>> Options(
+        string allLabel,
+        IEnumerable<string> values) =>
+        [new SelectItem<string>("", allLabel), .. values.Select(value => new SelectItem<string>(value, value))];
+
+    static string DisplayTargets(CatalogBrowserEntry entry) =>
+        entry.TargetPlatforms.Count == 0
+            ? "Not declared by feed"
+            : string.Join(", ", entry.TargetPlatforms);
+
+    static string RepositoryProvider(CatalogBrowserEntry entry) =>
+        string.IsNullOrWhiteSpace(entry.CatalogEntry.RepositorySource)
+            ? "GitHub"
+            : entry.CatalogEntry.RepositorySource;
+
+    static string DisplayDate(DateTimeOffset? date) =>
+        date?.UtcDateTime.ToString("yyyy-MM-dd HH:mm 'UTC'") ?? "Not supplied";
+
+    static string FormatSize(long bytes) =>
+        bytes >= 1024 * 1024
+            ? $"{bytes / 1024d / 1024d:N1} MiB"
+            : $"{bytes / 1024d:N1} KiB";
+
+    public ValueTask DisposeAsync()
+    {
+        _lifetime.Cancel();
+        _operation?.Cancel();
+        _lifetime.Dispose();
+        return ValueTask.CompletedTask;
+    }
 }

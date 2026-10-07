@@ -1,6 +1,7 @@
 <Solution>
   <Project Path="Hex1bCatalog.Core/Hex1bCatalog.Core.csproj" />
   <Project Path="Hex1bCatalog.Infrastructure/Hex1bCatalog.Infrastructure.csproj" />
+  <Project Path="Hex1bCatalog.Providers/Hex1bCatalog.Providers.csproj" />
   <Project Path="Hex1bCatalog.Tests/Hex1bCatalog.Tests.csproj" />
   <Project Path="Hex1bCatalog.Tui/Hex1bCatalog.Tui.csproj" />
   <Project Path="LANCommander.RecompCatalog.Plugin/LANCommander.RecompCatalog.Plugin.csproj" />
