@@ -62,7 +62,7 @@ public sealed class LcxPackageBuilder : IPackageBuilder
         };
 
         await using var content = File.OpenRead(request.Artifact.ZipPath);
-        await LCXBuilder.BuildAsync(
+        await LCXBuilder.BuildFromArchiveAsync(
             request.OutputPath,
             manifest,
             archive,
