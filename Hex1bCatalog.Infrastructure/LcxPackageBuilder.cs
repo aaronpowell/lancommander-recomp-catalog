@@ -62,11 +62,11 @@ public sealed class LcxPackageBuilder : IPackageBuilder
         };
 
         await using var content = File.OpenRead(request.Artifact.ZipPath);
-        await LCXPackageWriter.WriteAsync(
+        await LCXBuilder.BuildAsync(
             request.OutputPath,
             manifest,
-            [new LCXArchiveContent(archive, content)],
-            scripts: null,
+            archive,
+            content,
             createdBy: "LANCommander Recomp Catalog Prototype",
             progress,
             cancellationToken);
