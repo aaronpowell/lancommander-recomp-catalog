@@ -24,6 +24,11 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      - name: Install LANCommander.Server.UI frontend dependencies
+        shell: pwsh
+        working-directory: .\lancommander\LANCommander.Server.UI
+        run: npm ci
+
       - name: Build LANCommander assemblies
         shell: pwsh
         run: |
