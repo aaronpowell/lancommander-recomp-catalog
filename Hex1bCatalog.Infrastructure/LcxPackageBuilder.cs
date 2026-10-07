@@ -2,6 +2,7 @@ using Hex1bCatalog.Core;
 using LANCommander.Packaging.LCX;
 using LANCommander.SDK.Enums;
 using LANCommander.SDK.Models.Manifest;
+using System.Text.Json;
 using ManifestArchive = LANCommander.SDK.Models.Manifest.Archive;
 using ManifestAction = LANCommander.SDK.Models.Manifest.Action;
 
@@ -38,6 +39,7 @@ public sealed class LcxPackageBuilder : IPackageBuilder
                 + $"Release asset: {request.Asset.Name}\nSHA-256: {request.Artifact.Sha256}",
             Singleplayer = true,
             Type = GameType.MainGame,
+            CustomFields = BuildCustomFields(request),
             Actions =
             [
                 new ManifestAction
@@ -72,6 +74,37 @@ public sealed class LcxPackageBuilder : IPackageBuilder
             cancellationToken);
 
         return new PackageResult(gameId, archiveId, request.OutputPath, request.Artifact.Sha256);
+    }
+
+    private static ICollection<GameCustomField> BuildCustomFields(PackageRequest request)
+    {
+        if (request.Provenance is null)
+            return [];
+
+        List<GameCustomField> fields =
+        [
+            new GameCustomField
+            {
+                Name = "RecompCatalog.Identity",
+                Value = request.Provenance.Catalog.Value,
+            },
+            new GameCustomField
+            {
+                Name = "RecompCatalog.Release",
+                Value = request.Provenance.Release?.Value ?? request.Provenance.ImportedTag,
+            },
+        ];
+
+        if (request.Provenance.UpdatePolicy is not null)
+        {
+            fields.Add(new GameCustomField
+            {
+                Name = "RecompCatalog.UpdatePolicy",
+                Value = JsonSerializer.Serialize(request.Provenance.UpdatePolicy),
+            });
+        }
+
+        return fields;
     }
 
     private static string BuildDescription(PackageRequest request)

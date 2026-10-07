@@ -34,6 +34,8 @@ yet.
 $env:LANCOMMANDER_ROOT = "D:\copilot-app\copilot-worktrees\LANCommander\aaronpowell-potential-funicular"
 dotnet build "$env:LANCOMMANDER_ROOT\LANCommander.SDK\LANCommander.SDK.csproj" -f net10.0
 dotnet build "$env:LANCOMMANDER_ROOT\LANCommander.Packaging\LANCommander.Packaging.csproj" -f net10.0
+dotnet build "$env:LANCOMMANDER_ROOT\LANCommander.Server.Data\LANCommander.Server.Data.csproj"
+dotnet build "$env:LANCOMMANDER_ROOT\LANCommander.Server.Services\LANCommander.Server.Services.csproj"
 dotnet build "$env:LANCOMMANDER_ROOT\LANCommander.Server.Plugins\LANCommander.Server.Plugins.csproj"
 dotnet build "$env:LANCOMMANDER_ROOT\LANCommander.Server.UI\LANCommander.Server.UI.csproj"
 dotnet build Hex1bCatalog.slnx
@@ -43,7 +45,8 @@ dotnet test Hex1bCatalog.Tests\Hex1bCatalog.Tests.csproj
 You can also pass `-p:LANCommanderRoot=D:\src\LANCommander`. The build resolves
 `LANCommander.SDK.dll`, `LANCommander.Packaging.dll`,
 `LANCommander.Packaging.Abstractions.dll`, `LANCommander.Server.Plugins.dll`, and
-`LANCommander.Server.UI.dll` from each project's `bin\Debug\net10.0` directory.
+`LANCommander.Server.UI.dll`, `LANCommander.Server.Services.dll`, and
+`LANCommander.Server.Data.dll` from each project's `bin\Debug\net10.0` directory.
 
 ## Server plugin
 
@@ -54,8 +57,29 @@ administrator-only catalog browser at `/Plugins/RecompCatalog`.
 The browser loads a Quiver-compatible catalog index, maps its lists into a searchable view, and
 supports deterministic tag, original-platform, and target-platform filters when those facets are
 present in the feed. Selecting an entry shows its catalog provenance, repository, project, tags,
-and platform information. "Import preview" resolves the latest GitHub release and lists selectable
-Windows ZIP/EXE assets without downloading them.
+and platform information. "Check release and prepare" resolves the latest GitHub release and lists
+selectable Windows ZIP/EXE assets without downloading them.
+
+Catalog entries now have a canonical identity built from the configured feed, source list,
+repository provider/path, and stable entry key. LANCommander games are matched by the
+`RecompCatalog.Identity` custom field; packages produced by the prototype write that field plus
+the exact `RecompCatalog.Release` identity and serialized `RecompCatalog.UpdatePolicy`. Existing
+prototype packages that predate those fields
+are detected conservatively by their deterministic game ID, but their exact imported release is
+reported as unknown rather than guessed from a display name.
+
+The browser distinguishes never imported, imported/current, update available, imported release
+unknown, and state-check failure. Initial browsing only reads LANCommander game/custom-field/version
+state and does not call release providers per entry. A release check is explicit and compares exact
+provider, repository, tag, selected asset name, and asset URL identity. A difference is reported as
+an available update without assuming arbitrary tags are SemVer or claiming which tag is newer.
+
+Selecting a release asset creates a reviewable import preparation containing immutable catalog and
+release provenance plus the future Package-script policy: repository provider/path, release asset
+filter, selected asset, archive format, and normalization behavior. Metadata lookup is then
+explicitly invoked through LANCommander's configured `MetadataService`/`IMetadataProvider`
+implementations. The fetched game-creation metadata is shown for review while catalog and release
+provenance remain separate.
 
 The plugin is independent of Quiver and does not bundle a catalog snapshot. Quiver inspired the
 workflow, and compatible public feeds are treated as untrusted remote input: invalid URLs, HTTP
@@ -87,13 +111,18 @@ explicit unconfigured state. GitHub release preview uses `GH_TOKEN` or `GITHUB_T
 matching the prototype conventions; unauthenticated public-repository lookup remains supported at
 GitHub's lower rate limit.
 
-The current import boundary is intentionally preview-only. Final confirmation stays disabled until
-the plugin can hand the selected release asset through artifact download/normalization, executable
-selection, LCX creation, and LANCommander server game/archive ingestion without faking success.
+The current import boundary is intentionally preparation-only. Final confirmation stays disabled
+until the plugin can hand the selected release asset through artifact download/normalization,
+executable selection, LCX creation, and LANCommander server game/archive ingestion without faking
+success. LANCommander currently exposes its metadata providers, but the game-creation UI's
+field-by-field merge and persistence operation is component-local and ends by creating/updating a
+game. The plugin therefore reuses provider search/fetch behavior and presents a non-persisting
+review rather than invoking that terminal import action early.
 
 The host contract, UI, and packaging assemblies (`LANCommander.SDK`,
-`LANCommander.Server.Plugins`, `LANCommander.Server.UI`, `LANCommander.Packaging`, and
-`LANCommander.Packaging.Abstractions`) are referenced with `Private="false"`. Plugin output
+`LANCommander.Server.Plugins`, `LANCommander.Server.UI`, `LANCommander.Server.Services`,
+`LANCommander.Server.Data`, `LANCommander.Packaging`, and `LANCommander.Packaging.Abstractions`)
+are referenced with `Private="false"`. Plugin output
 contains the plugin plus its private `Hex1bCatalog.Core` and `Hex1bCatalog.Providers` assemblies,
 but no host or Radzen binaries. This is required: the server must provide the already-loaded
 copies so contract types and Razor controls keep a single identity across the plugin's isolated
@@ -115,8 +144,9 @@ Copy-Item LANCommander.RecompCatalog.Plugin\bin\Debug\net10.0\* $dest -Force
 
 Start the server and sign in as an administrator. The sidebar gains a "Recomp Catalog" entry, and
 startup logs `Loaded plugin 'Recomp Catalog' (dev.aaronpowell.lancommander.recompcatalog)`. The
-page at `/Plugins/RecompCatalog` renders its loading, failure, empty, filter, details, and import
-preview states with `LANCommander.Server.UI.Controls`.
+page at `/Plugins/RecompCatalog` renders its loading, failure, empty, filters, imported/update
+states, details, release check, and lookup-assisted preparation with
+`LANCommander.Server.UI.Controls`.
 
 The navigation entry only controls visibility. Access is enforced by the server from the page's
 `[PluginAccess(PluginAccessLevel.Administrator)]` declaration, and a plugin page that declares
@@ -124,11 +154,14 @@ nothing is administrator-only by default.
 
 ### Host load-context prerequisite
 
-The current LANCommander plugin load context must treat `LANCommander.Server.UI` as a shared
-host assembly, alongside `LANCommander.Server.Plugins`, so the plugin resolves the server's
-already-loaded UI assembly instead of loading a second copy. This repository intentionally does
-not modify the LANCommander host; update that host-side shared-assembly list before deploying this
-plugin to a server build whose load context does not already share `LANCommander.Server.UI`.
+The current LANCommander plugin load context must treat `LANCommander.Server.UI` and
+`LANCommander.Server.Services` as shared host assemblies, alongside
+`LANCommander.Server.Plugins`, so the plugin resolves the server's already-loaded UI and service
+assemblies instead of loading second copies. `LANCommander.Server.Data` is also compile-time only
+and must resolve from the host; it must not be copied into the plugin directory. The pinned host
+already shares Server.Services and resolves its Data dependency from the default load context.
+This repository intentionally does not modify LANCommander; update the host-side shared-assembly
+list before deploying to a build that does not share Server.UI or Server.Services.
 
 ## Run
 

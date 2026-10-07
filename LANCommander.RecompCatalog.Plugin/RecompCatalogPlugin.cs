@@ -3,6 +3,7 @@ using Hex1bCatalog.Infrastructure;
 using LANCommander.RecompCatalog.Plugin;
 using LANCommander.SDK.Plugins;
 using LANCommander.Server.Plugins;
+using LANCommander.Server.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -24,7 +25,7 @@ public sealed class RecompCatalogPlugin : IPlugin
 
     public string Id => PluginId;
     public string Name => "Recomp Catalog";
-    public string Version => "0.2.0";
+    public string Version => "0.3.0";
     public string Author => "Aaron Powell";
 
     public void ConfigureServices(IServiceCollection services)
@@ -47,6 +48,10 @@ public sealed class RecompCatalogPlugin : IPlugin
                 serviceProvider.GetRequiredService<RecompCatalogHttpClient>().Client,
                 GitHubAuthentication.FromEnvironment().Token));
         services.AddSingleton<CatalogBrowserService>();
+        services.AddScoped<ICatalogHostIntegration>(serviceProvider =>
+            new CatalogHostIntegration(
+                serviceProvider.GetRequiredService<GameService>(),
+                serviceProvider.GetRequiredService<MetadataService>()));
     }
 
     public Task InitializeAsync(PluginContext context, CancellationToken cancellationToken)

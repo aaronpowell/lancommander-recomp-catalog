@@ -54,9 +54,36 @@ public class LcxPackageBuilderTests
                 new FileInfo(normalizedPath).Length,
                 3,
                 ["bin/game.exe"]);
+            var catalogIdentity = CatalogIdentity.Create(
+                new Uri("https://catalog.test/index.json"),
+                "test",
+                new Uri("https://catalog.test/list.json"),
+                entry);
+            var releaseIdentity = ReleaseIdentity.Create(catalogIdentity, release, asset);
+            var provenance = new CatalogImportProvenance(
+                StableId.Create("game:owner/repository:Test Game"),
+                entry.Name,
+                catalogIdentity,
+                release.Tag,
+                releaseIdentity,
+                new PackageUpdatePolicy(
+                    "github",
+                    entry.Repository,
+                    null,
+                    asset.Name,
+                    "zip",
+                    true,
+                    "bin/game.exe"));
 
             var result = await new LcxPackageBuilder().BuildAsync(
-                new PackageRequest(entry, release, asset, artifact, "bin/game.exe", outputPath));
+                new PackageRequest(
+                    entry,
+                    release,
+                    asset,
+                    artifact,
+                    "bin/game.exe",
+                    outputPath,
+                    provenance));
 
             Assert.True(File.Exists(outputPath));
             Assert.Equal(StableId.Create("game:owner/repository:Test Game"), result.GameId);
@@ -75,6 +102,18 @@ public class LcxPackageBuilderTests
             Assert.Contains("owner/repository", manifest.Notes);
             Assert.Equal("bin\\game.exe", Assert.Single(manifest.Actions).Path);
             Assert.Equal(result.ArchiveId, Assert.Single(manifest.Archives).Id);
+            Assert.Contains(
+                manifest.CustomFields,
+                field => field.Name == "RecompCatalog.Identity"
+                    && field.Value == catalogIdentity.Value);
+            Assert.Contains(
+                manifest.CustomFields,
+                field => field.Name == "RecompCatalog.Release"
+                    && field.Value == releaseIdentity.Value);
+            Assert.Contains(
+                manifest.CustomFields,
+                field => field.Name == "RecompCatalog.UpdatePolicy"
+                    && field.Value.Contains(asset.Name, StringComparison.Ordinal));
         }
         finally
         {

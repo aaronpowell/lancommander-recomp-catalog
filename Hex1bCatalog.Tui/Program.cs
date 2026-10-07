@@ -40,6 +40,7 @@ try
     }
 
     var allEntries = new List<CatalogEntry>();
+    var identities = new Dictionary<CatalogEntry, CatalogIdentity>(ReferenceEqualityComparer.Instance);
     IReadOnlyList<CatalogEntry> visibleEntries = [];
     CatalogEntry? selectedEntry = null;
     ReleaseInfo? release = null;
@@ -176,7 +177,10 @@ try
                         selectedAsset,
                         artifact,
                         executable,
-                        outputPath),
+                        outputPath,
+                        identities.TryGetValue(selectedEntry, out var identity)
+                            ? CreateProvenance(identity, selectedEntry, release, selectedAsset, executable)
+                            : null),
                     new Progress<string>(message =>
                     {
                         status = message;
@@ -202,9 +206,18 @@ try
     try
     {
         var sources = await services.Catalogs.LoadAsync(new Uri(feed), cancellation.Token);
-        allEntries.AddRange(sources
-            .SelectMany(source => source.Entries)
-            .Where(entry => entry.IsGitHub));
+        foreach (var source in sources)
+        {
+            foreach (var entry in source.Entries.Where(entry => entry.IsGitHub))
+            {
+                allEntries.Add(entry);
+                identities[entry] = CatalogIdentity.Create(
+                    new Uri(feed),
+                    source.Id,
+                    source.Location,
+                    entry);
+            }
+        }
         visibleEntries = CatalogSearch.Filter(allEntries, search);
         status = $"Loaded {visibleEntries.Count} GitHub catalog entries. Search or select one.";
     }
@@ -306,6 +319,27 @@ static string? GetOption(string[] arguments, string name)
         argument.Equals(name, StringComparison.OrdinalIgnoreCase));
     return index >= 0 && index + 1 < arguments.Length ? arguments[index + 1] : null;
 }
+
+static CatalogImportProvenance CreateProvenance(
+    CatalogIdentity identity,
+    CatalogEntry entry,
+    ReleaseInfo release,
+    ReleaseAsset asset,
+    string executable) =>
+    new(
+        StableId.Create($"game:{entry.Repository.ToLowerInvariant()}:{entry.Name}"),
+        entry.Name,
+        identity,
+        release.Tag,
+        ReleaseIdentity.Create(identity, release, asset),
+        new PackageUpdatePolicy(
+            identity.RepositoryProvider,
+            identity.Repository,
+            entry.ReleaseAssetFilter,
+            asset.Name,
+            Path.GetExtension(asset.Name).TrimStart('.').ToLowerInvariant(),
+            true,
+            executable));
 
 static string GetOutputPath(
     string outputDirectory,

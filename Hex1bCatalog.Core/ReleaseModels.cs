@@ -25,7 +25,8 @@ public sealed record PackageRequest(
     ReleaseAsset Asset,
     NormalizedArtifact Artifact,
     string Executable,
-    string OutputPath);
+    string OutputPath,
+    CatalogImportProvenance? Provenance = null);
 
 public sealed record PackageResult(
     Guid GameId,

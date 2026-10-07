@@ -26,6 +26,9 @@ public class CatalogBrowserTests
         Assert.Equal("Nintendo", zelda.OriginalPlatform);
         Assert.Equal(["Windows"], zelda.TargetPlatforms);
         Assert.Equal(new Uri("https://github.com/org/zelda"), zelda.RepositoryUrl);
+        Assert.Equal(
+            "v1|https://catalog.test/index.json|nintendo|https://catalog.test/nintendo.json|github|org/zelda|zelda",
+            zelda.Identity.Value);
     }
 
     [Fact]
@@ -96,6 +99,151 @@ public class CatalogBrowserTests
         var previewRelease = Assert.IsType<ReleaseInfo>(preview.Release);
         Assert.Same(release, previewRelease);
         Assert.Single(previewRelease.Assets);
+    }
+
+    [Fact]
+    public void CanonicalIdentityNormalizesFeedProviderAndRepository()
+    {
+        var entry = Entry("Zelda", "/Org/Zelda/", ["recomp"]) with
+        {
+            RepositorySource = " GitHub ",
+            FolderName = " Zelda ",
+        };
+
+        var first = CatalogIdentity.Create(
+            new Uri("https://CATALOG.test/index.json?cache=1"),
+            " Nintendo ",
+            new Uri("https://CATALOG.test/lists/nintendo.json#fragment"),
+            entry);
+        var second = CatalogIdentity.Create(
+            new Uri("https://catalog.test/index.json"),
+            "nintendo",
+            new Uri("https://catalog.test/lists/nintendo.json"),
+            entry);
+
+        Assert.Equal(first.Value, second.Value);
+        Assert.Equal("github", first.RepositoryProvider);
+        Assert.Equal("org/zelda", first.Repository);
+    }
+
+    [Fact]
+    public void ClassifiesImportedReleaseConservatively()
+    {
+        var identity = CatalogIdentity.Create(
+            new Uri("https://catalog.test/index.json"),
+            "nintendo",
+            new Uri("https://catalog.test/nintendo.json"),
+            Entry("Zelda", "org/zelda", ["recomp"]));
+        var asset = new ReleaseAsset(
+            "zelda.zip",
+            new Uri("https://downloads.test/zelda.zip"),
+            42,
+            "application/zip");
+        var release = ReleaseIdentity.Create(
+            identity,
+            new ReleaseInfo("v1", "v1", null, [asset]),
+            asset);
+        var imported = new CatalogImportProvenance(
+            Guid.NewGuid(),
+            "Zelda",
+            identity,
+            "v1",
+            release,
+            null);
+
+        Assert.Equal(
+            CatalogEntryState.ImportedCurrent,
+            CatalogEntryStateClassifier.Classify(imported, release).Status);
+        Assert.True(ReleaseIdentity.TryParse(release.Value, out var parsed));
+        Assert.Equal(release, parsed);
+
+        var changed = ReleaseIdentity.Create(
+            identity,
+            new ReleaseInfo("nightly", "nightly", null, [asset]),
+            asset);
+        Assert.Equal(
+            CatalogEntryState.UpdateAvailable,
+            CatalogEntryStateClassifier.Classify(imported, changed).Status);
+        Assert.Equal(
+            CatalogEntryState.ImportedReleaseUnknown,
+            CatalogEntryStateClassifier.Classify(imported).Status);
+        Assert.Equal(
+            CatalogEntryState.StateCheckFailed,
+            CatalogEntryStateClassifier.Classify(imported, failure: "offline").Status);
+    }
+
+    [Fact]
+    public async Task FiltersByImportedState()
+    {
+        var loaded = await CreateService(
+            [Source("Nintendo", Entry("Zelda", "org/zelda", ["recomp"]))])
+            .LoadAsync("https://catalog.test/index.json");
+        var imported = loaded.Entries[0] with
+        {
+            ImportState = new CatalogEntryStateView(CatalogEntryState.UpdateAvailable),
+        };
+
+        var results = CatalogBrowserService.ApplyFilter(
+            [imported],
+            new CatalogBrowserFilter(ImportState: CatalogEntryState.UpdateAvailable));
+
+        Assert.Same(imported, Assert.Single(results));
+    }
+
+    [Fact]
+    public void MetadataMergeRetainsCatalogAndReleaseProvenance()
+    {
+        var entry = Entry("Zelda", "org/zelda", ["recomp"]);
+        var identity = CatalogIdentity.Create(
+            new Uri("https://catalog.test/index.json"),
+            "nintendo",
+            new Uri("https://catalog.test/nintendo.json"),
+            entry);
+        var browserEntry = new CatalogBrowserEntry(
+            identity.Value,
+            entry,
+            "nintendo",
+            "Nintendo",
+            identity.SourceLocation,
+            "Nintendo",
+            [],
+            new Uri("https://github.com/org/zelda"))
+        {
+            Identity = identity,
+        };
+        var asset = new ReleaseAsset(
+            "zelda.zip",
+            new Uri("https://downloads.test/zelda.zip"),
+            42,
+            "application/zip");
+        var release = new ReleaseInfo("v1", "v1", null, [asset]);
+        var provenance = new CatalogImportProvenance(
+            Guid.NewGuid(),
+            "Zelda",
+            identity,
+            "v1",
+            ReleaseIdentity.Create(identity, release, asset),
+            null);
+        var preparation = new ImportPreparation(browserEntry, release, asset, provenance);
+        var metadata = new MetadataLookupResult(
+            "IGDB",
+            "123",
+            "The Legend of Zelda",
+            "Description",
+            new DateTime(1986, 2, 21),
+            true,
+            null,
+            ["Nintendo"],
+            ["Nintendo"],
+            ["Adventure"],
+            ["Fantasy"],
+            ["Steam: 1"]);
+
+        var merged = ImportPreparationMerger.ApplyMetadata(preparation, metadata);
+
+        Assert.Same(provenance, merged.Provenance);
+        Assert.Same(asset, merged.Asset);
+        Assert.Same(metadata, merged.Metadata);
     }
 
     private static CatalogBrowserService CreateService(IReadOnlyList<CatalogSource> sources) =>

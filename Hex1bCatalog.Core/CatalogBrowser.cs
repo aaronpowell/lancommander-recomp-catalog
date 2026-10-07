@@ -20,6 +20,8 @@ public sealed record CatalogBrowserEntry(
     Uri? RepositoryUrl)
 {
     public string DisplayName => CatalogEntry.DisplayName;
+    public CatalogIdentity Identity { get; init; } = null!;
+    public CatalogEntryStateView ImportState { get; init; } = CatalogEntryStateView.NeverImported();
 }
 
 public sealed record CatalogBrowserResult(
@@ -42,7 +44,8 @@ public sealed record CatalogBrowserFilter(
     string? Query = null,
     string? Tag = null,
     string? OriginalPlatform = null,
-    string? TargetPlatform = null);
+    string? TargetPlatform = null,
+    CatalogEntryState? ImportState = null);
 
 public enum ImportPreviewStatus
 {
@@ -90,7 +93,7 @@ public sealed class CatalogBrowserService(
         try
         {
             var sources = await catalogs.LoadAsync(feedLocation, cancellationToken);
-            var entries = Map(sources);
+            var entries = Map(feedLocation, sources);
             var status = entries.Count == 0
                 ? CatalogBrowserStatus.Empty
                 : CatalogBrowserStatus.Ready;
@@ -179,6 +182,9 @@ public sealed class CatalogBrowserService(
                 platform.Equals(filter.TargetPlatform, StringComparison.OrdinalIgnoreCase)));
         }
 
+        if (filter.ImportState.HasValue)
+            filtered = filtered.Where(entry => entry.ImportState.Status == filter.ImportState.Value);
+
         return filtered
             .OrderBy(entry => entry.DisplayName, StringComparer.OrdinalIgnoreCase)
             .ThenBy(entry => entry.CatalogEntry.Repository, StringComparer.OrdinalIgnoreCase)
@@ -186,28 +192,37 @@ public sealed class CatalogBrowserService(
     }
 
     private static IReadOnlyList<CatalogBrowserEntry> Map(
+        Uri feedLocation,
         IEnumerable<CatalogSource> sources) =>
         sources
-            .SelectMany(source => source.Entries.Select(entry => Map(source, entry)))
+            .SelectMany(source => source.Entries.Select(entry => Map(feedLocation, source, entry)))
             .OrderBy(entry => entry.DisplayName, StringComparer.OrdinalIgnoreCase)
             .ThenBy(entry => entry.CatalogEntry.Repository, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-    private static CatalogBrowserEntry Map(CatalogSource source, CatalogEntry entry)
+    private static CatalogBrowserEntry Map(
+        Uri feedLocation,
+        CatalogSource source,
+        CatalogEntry entry)
     {
         var targetPlatforms = DistinctSorted(entry.Tags
             .Select(tag => TargetPlatformTags.TryGetValue(tag, out var platform) ? platform : null)
             .OfType<string>());
 
+        var identity = CatalogIdentity.Create(feedLocation, source.Id, source.Location, entry);
+
         return new CatalogBrowserEntry(
-            $"{source.Id}:{entry.Repository}:{entry.FolderName}",
+            identity.Value,
             entry,
             source.Id,
             source.Name,
             source.Location,
             source.Name,
             targetPlatforms,
-            RepositoryLocation(entry));
+            RepositoryLocation(entry))
+        {
+            Identity = identity,
+        };
     }
 
     private static Uri? RepositoryLocation(CatalogEntry entry)
