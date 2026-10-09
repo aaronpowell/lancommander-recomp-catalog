@@ -288,6 +288,18 @@
                                                     </Alert>
                                                 }
 
+                                                @if (_metadataSearched
+                                                    && !_metadataLoading
+                                                    && _metadataResults.Count == 0
+                                                    && string.IsNullOrWhiteSpace(_metadataError))
+                                                {
+                                                    <Alert Info Title="No metadata matches found">
+                                                        @_metadataProvider returned no matches for
+                                                        "@_metadataSearchedQuery". Try a shorter or more general title, or
+                                                        fill the metadata in by hand below.
+                                                    </Alert>
+                                                }
+
                                                 @foreach (var result in _metadataResults)
                                                 {
                                                     <Card Small Borderless
@@ -297,34 +309,116 @@
                                                         <Button Small
                                                                 Loading="@_metadataLoading"
                                                                 OnClick="() => SelectMetadataAsync(result)">
-                                                            Review metadata
+                                                            Preview lookup result
                                                         </Button>
                                                     </Card>
                                                 }
 
-                                                @if (_preparation.Metadata is not null)
+                                                @if (_lookupCandidate is not null)
                                                 {
-                                                    <Card Small Title="Lookup metadata review" Style="margin-top: 12px">
-                                                        <dl>
-                                                            <dt>Title</dt>
-                                                            <dd>@_preparation.Metadata.Title</dd>
-                                                            <dt>Description</dt>
-                                                            <dd>@DisplayValue(_preparation.Metadata.Description)</dd>
-                                                            <dt>Released</dt>
-                                                            <dd>@(_preparation.Metadata.ReleasedOn?.ToString("yyyy-MM-dd") ?? "Not supplied")</dd>
-                                                            <dt>Engine</dt>
-                                                            <dd>@DisplayValue(_preparation.Metadata.Engine)</dd>
-                                                            <dt>Developers</dt>
-                                                            <dd>@DisplayList(_preparation.Metadata.Developers)</dd>
-                                                            <dt>Genres</dt>
-                                                            <dd>@DisplayList(_preparation.Metadata.Genres)</dd>
-                                                            <dt>Tags</dt>
-                                                            <dd>@DisplayList(_preparation.Metadata.Tags)</dd>
-                                                            <dt>External IDs</dt>
-                                                            <dd>@DisplayList(_preparation.Metadata.ExternalIds)</dd>
-                                                        </dl>
+                                                    <Card Small Title="Lookup result" Subtitle="@($"{_lookupCandidate.Provider} - {_lookupCandidate.Title}")" Style="margin-top: 12px">
+                                                        <Alert Info Title="Applying replaces the editable draft">
+                                                            Lookup values are never written into the draft automatically, so
+                                                            your edits are never silently overwritten. Apply them when you
+                                                            want this result to replace what is in the draft below.
+                                                        </Alert>
+                                                        <Button Small Primary OnClick="ApplyLookupMetadata">Apply to draft</Button>
+                                                        <Button Small OnClick="DismissLookupCandidate">Discard result</Button>
                                                     </Card>
                                                 }
+                                            }
+
+                                            @if (_preparation.Metadata is not null)
+                                            {
+                                                <Card Small Title="Editable metadata" Subtitle="Every field can be edited before import, with or without a lookup" Style="margin-top: 12px">
+                                                    <Row Gap="Gap.Medium" VerticalGap="Gap.Medium">
+                                                        <Column Xs="24" Md="12">
+                                                            <FormItem Label="Title">
+                                                                <TextInput Immediate
+                                                                           Value="@_preparation.Metadata.Title"
+                                                                           ValueChanged="value => EditMetadataDraft(draft => draft with { Title = value ?? string.Empty })" />
+                                                            </FormItem>
+                                                        </Column>
+                                                        <Column Xs="24" Md="12">
+                                                            <FormItem Label="Released">
+                                                                <DatePicker TValue="DateTime?"
+                                                                            Clearable
+                                                                            Format="yyyy-MM-dd"
+                                                                            Value="@_preparation.Metadata.ReleasedOn"
+                                                                            ValueChanged="value => EditMetadataDraft(draft => draft with { ReleasedOn = value })" />
+                                                            </FormItem>
+                                                        </Column>
+                                                        <Column Xs="24">
+                                                            <FormItem Label="Description">
+                                                                <TextArea Immediate
+                                                                          Rows="4"
+                                                                          Value="@_preparation.Metadata.Description"
+                                                                          ValueChanged="value => EditMetadataDraft(draft => draft with { Description = value })" />
+                                                            </FormItem>
+                                                        </Column>
+                                                        <Column Xs="24" Md="12">
+                                                            <FormItem Label="Engine">
+                                                                <TextInput Immediate
+                                                                           Value="@_preparation.Metadata.Engine"
+                                                                           ValueChanged="value => EditMetadataDraft(draft => draft with { Engine = value })" />
+                                                            </FormItem>
+                                                        </Column>
+                                                        <Column Xs="24" Md="12">
+                                                            <FormItem Label="Singleplayer">
+                                                                <Checkbox Value="@_preparation.Metadata.Singleplayer"
+                                                                          ValueChanged="value => EditMetadataDraft(draft => draft with { Singleplayer = value })" />
+                                                            </FormItem>
+                                                        </Column>
+                                                        <Column Xs="24" Md="12">
+                                                            <FormItem Label="Developers" Help="Separate several values with commas.">
+                                                                <TextInput Immediate
+                                                                           Placeholder="Comma separated"
+                                                                           Value="@_preparation.Metadata.Developers"
+                                                                           ValueChanged="value => EditMetadataDraft(draft => draft with { Developers = value ?? string.Empty })" />
+                                                            </FormItem>
+                                                        </Column>
+                                                        <Column Xs="24" Md="12">
+                                                            <FormItem Label="Publishers" Help="Separate several values with commas.">
+                                                                <TextInput Immediate
+                                                                           Placeholder="Comma separated"
+                                                                           Value="@_preparation.Metadata.Publishers"
+                                                                           ValueChanged="value => EditMetadataDraft(draft => draft with { Publishers = value ?? string.Empty })" />
+                                                            </FormItem>
+                                                        </Column>
+                                                        <Column Xs="24" Md="12">
+                                                            <FormItem Label="Genres" Help="Separate several values with commas.">
+                                                                <TextInput Immediate
+                                                                           Placeholder="Comma separated"
+                                                                           Value="@_preparation.Metadata.Genres"
+                                                                           ValueChanged="value => EditMetadataDraft(draft => draft with { Genres = value ?? string.Empty })" />
+                                                            </FormItem>
+                                                        </Column>
+                                                        <Column Xs="24" Md="12">
+                                                            <FormItem Label="Tags" Help="Separate several values with commas.">
+                                                                <TextInput Immediate
+                                                                           Placeholder="Comma separated"
+                                                                           Value="@_preparation.Metadata.Tags"
+                                                                           ValueChanged="value => EditMetadataDraft(draft => draft with { Tags = value ?? string.Empty })" />
+                                                            </FormItem>
+                                                        </Column>
+                                                        <Column Xs="24">
+                                                            <FormItem Label="External IDs" Help="Separate several values with commas.">
+                                                                <TextInput Immediate
+                                                                           Placeholder="Comma separated"
+                                                                           Value="@_preparation.Metadata.ExternalIds"
+                                                                           ValueChanged="value => EditMetadataDraft(draft => draft with { ExternalIds = value ?? string.Empty })" />
+                                                            </FormItem>
+                                                        </Column>
+                                                    </Row>
+
+                                                    @if (_metadataEdited)
+                                                    {
+                                                        <Alert Info Title="Draft edited">
+                                                            This draft contains your edits. A new lookup result will not
+                                                            replace them unless you apply it.
+                                                        </Alert>
+                                                    }
+                                                </Card>
                                             }
 
                                             <Alert Warning Title="Confirmation is not available yet">
@@ -362,10 +456,14 @@
     ImportPreparation? _preparation;
     IReadOnlyList<string> _metadataProviders = [];
     IReadOnlyList<MetadataLookupResult> _metadataResults = [];
+    MetadataLookupResult? _lookupCandidate;
     string _metadataProvider = "";
     string _metadataQuery = "";
+    string? _metadataSearchedQuery;
     string? _metadataError;
     bool _metadataLoading;
+    bool _metadataSearched;
+    bool _metadataEdited;
     string _query = "";
     string _tag = "";
     string _originalPlatform = "";
@@ -606,12 +704,19 @@
                 releaseIdentity,
                 policy);
 
-            _preparation = new ImportPreparation(_selected, release, asset, provenance);
+            _preparation = new ImportPreparation(
+                _selected,
+                release,
+                asset,
+                provenance,
+                EditableMetadataDraft.SeedFromCatalog(_selected.CatalogEntry, fallbackTitle: _selected.DisplayName));
             _metadataProviders = Host.GetMetadataProviders();
             _metadataProvider = _metadataProviders.FirstOrDefault() ?? "";
             _metadataQuery = _selected.CatalogEntry.Name;
             _metadataResults = [];
             _metadataError = null;
+            _metadataEdited = false;
+            _lookupCandidate = null;
         }
 
         async Task SearchMetadataAsync()
@@ -623,6 +728,9 @@
             _metadataLoading = true;
             _metadataError = null;
             _metadataResults = [];
+            _lookupCandidate = null;
+            _metadataSearched = true;
+            _metadataSearchedQuery = _metadataQuery;
             try
             {
                 _metadataResults = await Host.SearchMetadataAsync(
@@ -659,10 +767,11 @@
                 if (metadata is null)
                 {
                     _metadataError = "The metadata provider returned no game details.";
+                    _lookupCandidate = null;
                     return;
                 }
 
-                _preparation = ImportPreparationMerger.ApplyMetadata(_preparation, metadata);
+                _lookupCandidate = metadata;
             }
             catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
             {
@@ -670,6 +779,7 @@
             catch (Exception ex)
             {
                 _metadataError = ex.Message;
+                _lookupCandidate = null;
             }
             finally
             {
@@ -677,11 +787,41 @@
             }
         }
 
+    void ApplyLookupMetadata()
+    {
+        if (_preparation is null || _lookupCandidate is null)
+            return;
+
+        _preparation = ImportPreparationMerger.ApplyMetadata(_preparation, _lookupCandidate);
+        _metadataEdited = true;
+        _lookupCandidate = null;
+    }
+
+    void DismissLookupCandidate()
+    {
+        _lookupCandidate = null;
+    }
+
+    void EditMetadataDraft(Func<EditableMetadataDraft, EditableMetadataDraft> update)
+    {
+        if (_preparation is null || _preparation.Metadata is null)
+            return;
+
+        _preparation = ImportPreparationMerger.UpdateMetadataDraft(
+            _preparation,
+            update(_preparation.Metadata));
+        _metadataEdited = true;
+        _lookupCandidate = null;
+    }
+
         void MetadataProviderChanged(string value)
         {
             _metadataProvider = value;
             _metadataResults = [];
             _metadataError = null;
+            _metadataSearched = false;
+            _metadataSearchedQuery = null;
+            _lookupCandidate = null;
         }
 
         void ResetPreparation()
@@ -692,7 +832,11 @@
             _metadataProvider = "";
             _metadataQuery = "";
             _metadataError = null;
-    }
+            _metadataSearched = false;
+            _metadataSearchedQuery = null;
+            _metadataEdited = false;
+            _lookupCandidate = null;
+        }
 
     CancellationTokenSource BeginOperation()
     {

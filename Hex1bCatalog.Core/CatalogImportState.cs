@@ -214,12 +214,124 @@ public sealed record MetadataLookupResult(
     IReadOnlyList<string> Tags,
     IReadOnlyList<string> ExternalIds);
 
+public sealed record EditableMetadataDraft(
+    string Provider,
+    string ProviderGameId,
+    string Title,
+    string? Description,
+    DateTime? ReleasedOn,
+    bool Singleplayer,
+    string? Engine,
+    string Developers,
+    string Publishers,
+    string Genres,
+    string Tags,
+    string ExternalIds)
+{
+    public static EditableMetadataDraft Empty(
+        string title,
+        string? provider = null,
+        string? providerGameId = null,
+        string? description = null) =>
+        new(
+            provider ?? string.Empty,
+            providerGameId ?? string.Empty,
+            title,
+            description,
+            null,
+            false,
+            null,
+            string.Empty,
+            string.Empty,
+            string.Empty,
+            string.Empty,
+            string.Empty);
+
+    public static EditableMetadataDraft FromMetadataLookupResult(MetadataLookupResult metadata)
+    {
+        ArgumentNullException.ThrowIfNull(metadata);
+
+        return new EditableMetadataDraft(
+            metadata.Provider,
+            metadata.ProviderGameId,
+            metadata.Title,
+            metadata.Description,
+            metadata.ReleasedOn,
+            metadata.Singleplayer,
+            metadata.Engine,
+            JoinValues(metadata.Developers),
+            JoinValues(metadata.Publishers),
+            JoinValues(metadata.Genres),
+            JoinValues(metadata.Tags),
+            JoinValues(metadata.ExternalIds));
+    }
+
+    /// <summary>
+    /// Seeds a draft from what the catalog feed already knows, so an operator can type
+    /// metadata by hand without ever running a provider lookup.
+    /// </summary>
+    public static EditableMetadataDraft SeedFromCatalogEntry(CatalogBrowserEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        return SeedFromCatalog(entry.CatalogEntry, fallbackTitle: entry.DisplayName);
+    }
+
+    public static EditableMetadataDraft SeedFromCatalog(
+        CatalogEntry entry,
+        MetadataLookupResult? lookup = null,
+        string? fallbackTitle = null)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+
+        var draft = lookup is null
+            ? Empty(string.IsNullOrWhiteSpace(fallbackTitle) ? entry.Name : fallbackTitle)
+            : FromMetadataLookupResult(lookup);
+
+        return draft with
+        {
+            Title = string.IsNullOrWhiteSpace(draft.Title)
+                ? (string.IsNullOrWhiteSpace(fallbackTitle) ? entry.Name : fallbackTitle)
+                : draft.Title,
+            Tags = string.IsNullOrWhiteSpace(draft.Tags) ? JoinValues(entry.Tags) : draft.Tags,
+        };
+    }
+
+    public MetadataLookupResult ToMetadataLookupResult() =>
+        new(
+            Provider,
+            ProviderGameId,
+            string.IsNullOrWhiteSpace(Title) ? "Untitled" : Title.Trim(),
+            Description,
+            ReleasedOn,
+            Singleplayer,
+            Engine,
+            SplitValues(Developers),
+            SplitValues(Publishers),
+            SplitValues(Genres),
+            SplitValues(Tags),
+            SplitValues(ExternalIds));
+
+    private static string JoinValues(IEnumerable<string> values) =>
+        string.Join(", ", values
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase));
+
+    private static IReadOnlyList<string> SplitValues(string? value) =>
+        string.IsNullOrWhiteSpace(value)
+            ? []
+            : value
+                .Split([';', ',', '\n', '\r'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+}
+
 public sealed record ImportPreparation(
     CatalogBrowserEntry Entry,
     ReleaseInfo Release,
     ReleaseAsset Asset,
     CatalogImportProvenance Provenance,
-    MetadataLookupResult? Metadata = null);
+    EditableMetadataDraft? Metadata = null);
 
 public static class ImportPreparationMerger
 {
@@ -229,6 +341,15 @@ public static class ImportPreparationMerger
     {
         ArgumentNullException.ThrowIfNull(preparation);
         ArgumentNullException.ThrowIfNull(metadata);
-        return preparation with { Metadata = metadata };
+        return preparation with { Metadata = EditableMetadataDraft.FromMetadataLookupResult(metadata) };
+    }
+
+    public static ImportPreparation UpdateMetadataDraft(
+        ImportPreparation preparation,
+        EditableMetadataDraft draft)
+    {
+        ArgumentNullException.ThrowIfNull(preparation);
+        ArgumentNullException.ThrowIfNull(draft);
+        return preparation with { Metadata = draft };
     }
 }

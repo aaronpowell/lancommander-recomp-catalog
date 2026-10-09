@@ -243,7 +243,139 @@ public class CatalogBrowserTests
 
         Assert.Same(provenance, merged.Provenance);
         Assert.Same(asset, merged.Asset);
-        Assert.Same(metadata, merged.Metadata);
+        Assert.Equal("The Legend of Zelda", merged.Metadata!.Title);
+        Assert.Equal("IGDB", merged.Metadata.Provider);
+        Assert.Equal("Original", preparation.Metadata?.Title ?? "Original");
+    }
+
+    [Fact]
+    public void MetadataDraftSeedsFromLookupResultAndRoundTripsToImmutableResult()
+    {
+        var lookup = new MetadataLookupResult(
+            "PCGamingWiki",
+            "zelda-64",
+            "The Legend of Zelda",
+            "A classic adventure.",
+            new DateTime(1986, 2, 21),
+            true,
+            "Engine",
+            ["Nintendo EAD"],
+            ["Nintendo"],
+            ["Action-Adventure"],
+            ["Adventure", "RPG"],
+            ["PCGamingWiki: 123", "IGDB: 456"]);
+
+        var draft = EditableMetadataDraft.FromMetadataLookupResult(lookup);
+        Assert.Equal("The Legend of Zelda", draft.Title);
+        Assert.Equal("Nintendo EAD", draft.Developers);
+        Assert.Equal("Adventure, RPG", draft.Tags);
+
+        draft = draft with
+        {
+            Title = "The Legend of Zelda: Ocarina of Time",
+            Description = "Updated description.",
+            Developers = "Nintendo EAD, Grezzo",
+            Singleplayer = false,
+        };
+
+        var roundTrip = draft.ToMetadataLookupResult();
+        Assert.Equal("The Legend of Zelda: Ocarina of Time", roundTrip.Title);
+        Assert.Equal("Updated description.", roundTrip.Description);
+        Assert.False(roundTrip.Singleplayer);
+        Assert.Equal(["Nintendo EAD", "Grezzo"], roundTrip.Developers);
+        Assert.Equal(["Nintendo"], roundTrip.Publishers);
+        Assert.Equal(["Action-Adventure"], roundTrip.Genres);
+        Assert.Equal(["Adventure", "RPG"], roundTrip.Tags);
+        Assert.Equal(["PCGamingWiki: 123", "IGDB: 456"], roundTrip.ExternalIds);
+    }
+
+    [Fact]
+    public void MetadataDraftSupportsManualEntryWithoutLookup()
+    {
+        var draft = EditableMetadataDraft.Empty("Custom title", "manual", "custom-id", "Manually entered description");
+        draft = draft with
+        {
+            ReleasedOn = new DateTime(2024, 5, 13),
+            Engine = "OpenTTD",
+            Developers = "Hex1b",
+            Genres = "Strategy",
+            Tags = "recomp, open-source",
+            ExternalIds = "steampowered: 42",
+        };
+
+        var result = draft.ToMetadataLookupResult();
+        Assert.Equal("Custom title", result.Title);
+        Assert.Equal("Manually entered description", result.Description);
+        Assert.Equal("OpenTTD", result.Engine);
+        Assert.Equal(["Hex1b"], result.Developers);
+        Assert.Equal(["recomp", "open-source"], result.Tags);
+    }
+
+    [Fact]
+    public void ProvenanceRemainsImmutableWhenApplyingEdits()
+    {
+        var entry = Entry("Zelda", "org/zelda", ["recomp"]);
+        var identity = CatalogIdentity.Create(
+            new Uri("https://catalog.test/index.json"),
+            "nintendo",
+            new Uri("https://catalog.test/nintendo.json"),
+            entry);
+        var browserEntry = new CatalogBrowserEntry(
+            identity.Value,
+            entry,
+            "nintendo",
+            "Nintendo",
+            identity.SourceLocation,
+            "Nintendo",
+            [],
+            new Uri("https://github.com/org/zelda"))
+        {
+            Identity = identity,
+        };
+        var asset = new ReleaseAsset(
+            "zelda.zip",
+            new Uri("https://downloads.test/zelda.zip"),
+            42,
+            "application/zip");
+        var release = new ReleaseInfo("v1", "v1", null, [asset]);
+        var provenance = new CatalogImportProvenance(
+            Guid.NewGuid(),
+            "Zelda",
+            identity,
+            "v1",
+            ReleaseIdentity.Create(identity, release, asset),
+            null);
+        var preparation = new ImportPreparation(
+            browserEntry,
+            release,
+            asset,
+            provenance,
+            EditableMetadataDraft.Empty("Manual draft"));
+        var lookup = new MetadataLookupResult(
+            "IGDB",
+            "123",
+            "The Legend of Zelda",
+            "Description",
+            null,
+            true,
+            null,
+            ["Nintendo"],
+            ["Nintendo"],
+            ["Adventure"],
+            ["Fantasy"],
+            []);
+
+        var lookupDraft = EditableMetadataDraft.FromMetadataLookupResult(lookup);
+        var updated = ImportPreparationMerger.UpdateMetadataDraft(
+            preparation,
+            lookupDraft with { Title = "Edited title" });
+
+        Assert.Same(provenance, updated.Provenance);
+        Assert.Same(identity, updated.Provenance.Catalog);
+        Assert.Same(provenance.Release, updated.Provenance.Release);
+        Assert.Same(asset, updated.Asset);
+        Assert.Equal("Manual draft", preparation.Metadata!.Title);
+        Assert.Equal("Edited title", updated.Metadata!.Title);
     }
 
     private static CatalogBrowserService CreateService(IReadOnlyList<CatalogSource> sources) =>

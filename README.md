@@ -78,8 +78,11 @@ Selecting a release asset creates a reviewable import preparation containing imm
 release provenance plus the future Package-script policy: repository provider/path, release asset
 filter, selected asset, archive format, and normalization behavior. Metadata lookup is then
 explicitly invoked through LANCommander's configured `MetadataService`/`IMetadataProvider`
-implementations. The fetched game-creation metadata is shown for review while catalog and release
-provenance remain separate.
+implementations. The operator can edit every imported metadata field, either from catalog-seeded
+defaults or after explicitly applying a lookup result. Lookup never overwrites the draft
+automatically, and a zero-result search displays an explicit empty state with guidance to shorten
+the query or continue with manual entry. Catalog and release provenance remain read-only and
+separate from the editable metadata draft.
 
 The plugin is independent of Quiver and does not bundle a catalog snapshot. Quiver inspired the
 workflow, and compatible public feeds are treated as untrusted remote input: invalid URLs, HTTP
