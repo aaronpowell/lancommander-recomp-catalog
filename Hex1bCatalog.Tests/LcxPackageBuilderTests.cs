@@ -74,6 +74,19 @@ public class LcxPackageBuilderTests
                     "zip",
                     true,
                     "bin/game.exe"));
+            var metadata = new EditableMetadataDraft(
+                "PCGamingWiki",
+                "Test Game",
+                "Edited Test Game",
+                "An edited description.",
+                new DateTime(2024, 4, 5),
+                false,
+                "Recomp Engine",
+                "Developer One, Developer Two",
+                "Publisher One",
+                "Adventure, Action",
+                "Recomp, Community",
+                "PCGamingWiki: Test Game, IGDB: 123");
 
             var result = await new LcxPackageBuilder().BuildAsync(
                 new PackageRequest(
@@ -83,7 +96,8 @@ public class LcxPackageBuilderTests
                     artifact,
                     "bin/game.exe",
                     outputPath,
-                    provenance));
+                    provenance,
+                    metadata));
 
             Assert.True(File.Exists(outputPath));
             Assert.Equal(StableId.Create("game:owner/repository:Test Game"), result.GameId);
@@ -97,7 +111,21 @@ public class LcxPackageBuilderTests
             var manifest = ManifestHelper.Deserialize<Game>(await reader.ReadToEndAsync());
 
             Assert.Equal(result.GameId, manifest.Id);
-            Assert.Equal("Test Game", manifest.Title);
+            Assert.Equal("Edited Test Game", manifest.Title);
+            Assert.Equal("An edited description.", manifest.Description);
+            Assert.Equal(new DateTime(2024, 4, 5), manifest.ReleasedOn);
+            Assert.False(manifest.Singleplayer);
+            Assert.Equal("Recomp Engine", manifest.Engine.Name);
+            Assert.Equal(["Developer One", "Developer Two"], manifest.Developers.Select(value => value.Name));
+            Assert.Equal(["Publisher One"], manifest.Publishers.Select(value => value.Name));
+            Assert.Equal(["Adventure", "Action"], manifest.Genres.Select(value => value.Name));
+            Assert.Equal(["Recomp", "Community"], manifest.Tags.Select(value => value.Name));
+            Assert.Contains(
+                manifest.ExternalIds,
+                value => value.Provider == "PCGamingWiki" && value.ExternalId == "Test Game");
+            Assert.Contains(
+                manifest.ExternalIds,
+                value => value.Provider == "IGDB" && value.ExternalId == "123");
             Assert.Equal("v1.2.3", manifest.Version);
             Assert.Contains("owner/repository", manifest.Notes);
             Assert.Equal("bin\\game.exe", Assert.Single(manifest.Actions).Path);
@@ -114,6 +142,18 @@ public class LcxPackageBuilderTests
                 manifest.CustomFields,
                 field => field.Name == "RecompCatalog.UpdatePolicy"
                     && field.Value.Contains(asset.Name, StringComparison.Ordinal));
+            var packageScript = Assert.Single(
+                manifest.Scripts,
+                script => script.Type == LANCommander.SDK.Enums.ScriptType.Package);
+            var packageScriptEntry = package.GetEntry($"Scripts/{packageScript.Id}");
+            Assert.NotNull(packageScriptEntry);
+            await using var packageScriptStream = packageScriptEntry.Open();
+            using var packageScriptReader = new StreamReader(packageScriptStream);
+            var packageScriptContents = await packageScriptReader.ReadToEndAsync();
+            Assert.Contains("owner/repository", packageScriptContents, StringComparison.Ordinal);
+            Assert.Contains("$Game.Version", packageScriptContents, StringComparison.Ordinal);
+            Assert.Contains("New-Package", packageScriptContents, StringComparison.Ordinal);
+            Assert.Contains("bin/game.exe", packageScriptContents, StringComparison.Ordinal);
         }
         finally
         {

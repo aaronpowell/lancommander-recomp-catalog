@@ -33,9 +33,9 @@ jobs:
         shell: pwsh
         run: |
           dotnet build .\lancommander\LANCommander.SDK\LANCommander.SDK.csproj -c Debug -f net10.0
-          dotnet build .\lancommander\LANCommander.Packaging\LANCommander.Packaging.csproj -c Debug -f net10.0
           dotnet build .\lancommander\LANCommander.Server.Data\LANCommander.Server.Data.csproj -c Debug
           dotnet build .\lancommander\LANCommander.Server.Services\LANCommander.Server.Services.csproj -c Debug
+          dotnet build .\lancommander\LANCommander.Server.ImportExport\LANCommander.Server.ImportExport.csproj -c Debug
           dotnet build .\lancommander\LANCommander.Server.Plugins\LANCommander.Server.Plugins.csproj -c Debug
           dotnet build .\lancommander\LANCommander.Server.UI\LANCommander.Server.UI.csproj -c Debug
 
@@ -55,6 +55,7 @@ jobs:
             "LANCommander.Server.UI.dll",
             "LANCommander.Server.Services.dll",
             "LANCommander.Server.Data.dll",
+            "LANCommander.Server.ImportExport.dll",
             "LANCommander.Packaging.dll",
             "LANCommander.Packaging.Abstractions.dll"
           )

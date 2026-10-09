@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Hex1bCatalog.Core\Hex1bCatalog.Core.csproj" />
+    <ProjectReference Include="..\Hex1bCatalog.Infrastructure\Hex1bCatalog.Infrastructure.csproj" />
     <ProjectReference Include="..\Hex1bCatalog.Providers\Hex1bCatalog.Providers.csproj" />
   </ItemGroup>
 
@@ -28,8 +29,7 @@
     <Reference Include="LANCommander.Server.UI" HintPath="$(LANCommanderServerUIArtifacts)\LANCommander.Server.UI.dll" Private="false" />
     <Reference Include="LANCommander.Server.Services" HintPath="$(LANCommanderServerServicesArtifacts)\LANCommander.Server.Services.dll" Private="false" />
     <Reference Include="LANCommander.Server.Data" HintPath="$(LANCommanderServerDataArtifacts)\LANCommander.Server.Data.dll" Private="false" />
-    <Reference Include="LANCommander.Packaging" HintPath="$(LANCommanderPackagingArtifacts)\LANCommander.Packaging.dll" Private="false" />
-    <Reference Include="LANCommander.Packaging.Abstractions" HintPath="$(LANCommanderPackagingAbstractionsArtifacts)\LANCommander.Packaging.Abstractions.dll" Private="false" />
+    <Reference Include="LANCommander.Server.ImportExport" HintPath="$(LANCommanderServerImportExportArtifacts)\LANCommander.Server.ImportExport.dll" Private="false" />
   </ItemGroup>
 
   <Target Name="RequireLANCommanderPluginAssemblies" BeforeTargets="ResolveReferences">
@@ -43,10 +43,8 @@
            Text="LANCommander.Server.Services.dll was not found. Build the pinned LANCommander source and set LANCommanderRoot. See README.md." />
     <Error Condition="!Exists('$(LANCommanderServerDataArtifacts)\LANCommander.Server.Data.dll')"
            Text="LANCommander.Server.Data.dll was not found. Build the pinned LANCommander source and set LANCommanderRoot. See README.md." />
-    <Error Condition="!Exists('$(LANCommanderPackagingArtifacts)\LANCommander.Packaging.dll')"
-           Text="LANCommander.Packaging.dll was not found. Build the pinned LANCommander source and set LANCommanderRoot. See README.md." />
-    <Error Condition="!Exists('$(LANCommanderPackagingAbstractionsArtifacts)\LANCommander.Packaging.Abstractions.dll')"
-           Text="LANCommander.Packaging.Abstractions.dll was not found. Build the pinned LANCommander source and set LANCommanderRoot. See README.md." />
+    <Error Condition="!Exists('$(LANCommanderServerImportExportArtifacts)\LANCommander.Server.ImportExport.dll')"
+           Text="LANCommander.Server.ImportExport.dll was not found. Build the pinned LANCommander source and set LANCommanderRoot. See README.md." />
   </Target>
 
 </Project>

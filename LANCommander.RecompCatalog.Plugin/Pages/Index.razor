@@ -4,6 +4,7 @@
 @inject CatalogBrowserService Browser
 @inject RecompCatalogSettings Settings
 @inject ICatalogHostIntegration Host
+@inject CatalogImportWorkflow ImportWorkflow
 
 <PageTitle>Recomp Catalog</PageTitle>
 
@@ -421,13 +422,67 @@
                                                 </Card>
                                             }
 
-                                            <Alert Warning Title="Confirmation is not available yet">
-                                                Preparation now captures catalog, exact release, asset policy, and optional
-                                                LANCommander lookup metadata. Final confirmation remains disabled until the
-                                                safe download, normalization, executable selection, and LCX ingestion path
-                                                is connected to the server.
-                                            </Alert>
-                                            <Button Primary Disabled Icon="IconType.Download">Confirm import</Button>
+                                            @if (!string.IsNullOrWhiteSpace(_importError))
+                                            {
+                                                <Alert Danger Title="Import preparation failed">
+                                                    @_importError
+                                                </Alert>
+                                            }
+
+                                            @if (_importResult is not null)
+                                            {
+                                                <Alert Success Title="Game imported">
+                                                    LANCommander imported @_importResult.ImportedCount record(s) as game
+                                                    <Typography Code>@_importResult.GameId</Typography>.
+                                                </Alert>
+                                            }
+                                            else if (_preparedArtifact is null)
+                                            {
+                                                <Alert Warning Title="The release asset will be treated as untrusted">
+                                                    LANCommander will download the selected release, enforce archive size
+                                                    and path safety limits, normalize it without executing anything, and
+                                                    then ask you to choose the executable before import.
+                                                </Alert>
+                                                <Button Primary
+                                                        Loading="@_importBusy"
+                                                        Disabled="@_importBusy"
+                                                        OnClick="PrepareArtifactAsync">
+                                                    Download and inspect asset
+                                                </Button>
+                                            }
+                                            else
+                                            {
+                                                <Card Small
+                                                      Title="Normalized release"
+                                                      Subtitle="@($"{_preparedArtifact.Artifact.Executables.Count} executable candidate(s), {FormatSize(_preparedArtifact.Artifact.UncompressedSize)} expanded")"
+                                                      Style="margin-top: 12px">
+                                                    <FormItem Label="Primary executable">
+                                                        <Select TValue="string"
+                                                                Items="@ExecutableOptions"
+                                                                Value="@_selectedExecutable"
+                                                                ValueChanged="value => _selectedExecutable = value" />
+                                                    </FormItem>
+                                                    <Typography Code>@_preparedArtifact.Artifact.Sha256</Typography>
+                                                </Card>
+
+                                                <Button Primary
+                                                        Loading="@_importBusy"
+                                                        Disabled="@(_importBusy || string.IsNullOrWhiteSpace(_selectedExecutable))"
+                                                        OnClick="ImportPreparedAsync">
+                                                    Import into LANCommander
+                                                </Button>
+                                                <Button Disabled="@_importBusy" OnClick="DiscardPreparedArtifact">
+                                                    Discard downloaded asset
+                                                </Button>
+                                            }
+
+                                            @if (_importBusy)
+                                            {
+                                                <Alert Info Title="Import in progress">
+                                                    @DisplayValue(_importProgress)
+                                                    <Button Small OnClick="CancelImport">Cancel</Button>
+                                                </Alert>
+                                            }
                                         </Card>
                                     }
                                 }
@@ -457,6 +512,13 @@
     IReadOnlyList<string> _metadataProviders = [];
     IReadOnlyList<MetadataLookupResult> _metadataResults = [];
     MetadataLookupResult? _lookupCandidate;
+    PreparedImportArtifact? _preparedArtifact;
+    CatalogImportResult? _importResult;
+    CancellationTokenSource? _importOperation;
+    string _selectedExecutable = "";
+    string? _importProgress;
+    string? _importError;
+    bool _importBusy;
     string _metadataProvider = "";
     string _metadataQuery = "";
     string? _metadataSearchedQuery;
@@ -488,6 +550,9 @@
 
     IEnumerable<SelectItem<string>> MetadataProviderOptions =>
         Options("Choose provider", _metadataProviders);
+
+    IEnumerable<SelectItem<string>> ExecutableOptions =>
+        Options("Choose executable", _preparedArtifact?.Artifact.Executables ?? []);
 
     protected override Task OnInitializedAsync() => ReloadAsync();
 
@@ -686,6 +751,7 @@
             if (_selected is null || _preview?.Release is null)
                 return;
 
+            DiscardPreparedArtifact();
             var release = _preview.Release;
             var releaseIdentity = ReleaseIdentity.Create(_selected.Identity, release, asset);
             var policy = new PackageUpdatePolicy(
@@ -717,6 +783,8 @@
             _metadataError = null;
             _metadataEdited = false;
             _lookupCandidate = null;
+            _importResult = null;
+            _importError = null;
         }
 
         async Task SearchMetadataAsync()
@@ -814,6 +882,123 @@
         _lookupCandidate = null;
     }
 
+    async Task PrepareArtifactAsync()
+    {
+        if (_preparation is null)
+            return;
+
+        _importOperation?.Cancel();
+        _importOperation?.Dispose();
+        _importOperation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        _importBusy = true;
+        _importError = null;
+        _importProgress = "Starting download...";
+        _importResult = null;
+
+        try
+        {
+            var progress = new Progress<string>(message =>
+            {
+                _importProgress = message;
+                _ = InvokeAsync(StateHasChanged);
+            });
+            _preparedArtifact = await ImportWorkflow.PrepareAsync(
+                _preparation,
+                progress,
+                _importOperation.Token);
+            _selectedExecutable = _preparedArtifact.Artifact.Executables.Count == 1
+                ? _preparedArtifact.Artifact.Executables[0]
+                : "";
+            _importProgress = "Release normalized. Choose the primary executable.";
+        }
+        catch (OperationCanceledException) when (_importOperation?.IsCancellationRequested == true)
+        {
+            _importProgress = "Import preparation cancelled.";
+        }
+        catch (Exception ex)
+        {
+            _importError = ex.Message;
+        }
+        finally
+        {
+            _importBusy = false;
+        }
+    }
+
+    async Task ImportPreparedAsync()
+    {
+        if (_preparation is null
+            || _preparedArtifact is null
+            || string.IsNullOrWhiteSpace(_selectedExecutable))
+        {
+            return;
+        }
+
+        _importOperation?.Cancel();
+        _importOperation?.Dispose();
+        _importOperation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        _importBusy = true;
+        _importError = null;
+        _importProgress = "Building package...";
+
+        try
+        {
+            var progress = new Progress<string>(message =>
+            {
+                _importProgress = message;
+                _ = InvokeAsync(StateHasChanged);
+            });
+            _importResult = await ImportWorkflow.ImportAsync(
+                _preparation,
+                _preparedArtifact,
+                _selectedExecutable,
+                progress,
+                _importOperation.Token);
+            _preparation = _preparation with { Provenance = _importResult.Provenance };
+            UpdateEntryState(
+                _preparation.Entry,
+                CatalogEntryStateClassifier.Classify(
+                    _importResult.Provenance,
+                    _preparation.Provenance.Release));
+            _importProgress = "Import complete.";
+            var cleanupError = CatalogImportWorkflow.Cleanup(_preparedArtifact);
+            if (!string.IsNullOrWhiteSpace(cleanupError))
+            {
+                _importError = $"The game was imported, but temporary files could not be removed: {cleanupError}";
+            }
+            _preparedArtifact = null;
+            _selectedExecutable = "";
+        }
+        catch (OperationCanceledException) when (_importOperation?.IsCancellationRequested == true)
+        {
+            _importProgress = "Import cancelled.";
+        }
+        catch (Exception ex)
+        {
+            _importError = ex.Message;
+        }
+        finally
+        {
+            _importBusy = false;
+        }
+    }
+
+    void CancelImport() => _importOperation?.Cancel();
+
+    void DiscardPreparedArtifact()
+    {
+        if (_importBusy)
+            return;
+
+        var cleanupError = CatalogImportWorkflow.Cleanup(_preparedArtifact);
+        _preparedArtifact = null;
+        _selectedExecutable = "";
+        _importProgress = null;
+        _importError = string.IsNullOrWhiteSpace(cleanupError)
+            ? null
+            : $"Temporary files could not be removed: {cleanupError}";
+    }
+
         void MetadataProviderChanged(string value)
         {
             _metadataProvider = value;
@@ -826,6 +1011,7 @@
 
         void ResetPreparation()
         {
+            DiscardPreparedArtifact();
             _preparation = null;
             _metadataProviders = [];
             _metadataResults = [];
@@ -836,6 +1022,7 @@
             _metadataSearchedQuery = null;
             _metadataEdited = false;
             _lookupCandidate = null;
+            _importResult = null;
         }
 
     CancellationTokenSource BeginOperation()
@@ -912,6 +1099,9 @@
     {
         _lifetime.Cancel();
         _operation?.Cancel();
+        _importOperation?.Cancel();
+        _importOperation?.Dispose();
+        _ = CatalogImportWorkflow.Cleanup(_preparedArtifact);
         _lifetime.Dispose();
         return ValueTask.CompletedTask;
     }

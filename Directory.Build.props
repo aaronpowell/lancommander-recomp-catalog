@@ -7,7 +7,6 @@
     <LANCommanderServerUIArtifacts Condition="'$(LANCommanderServerUIArtifacts)' == ''">$(LANCommanderRoot)\LANCommander.Server.UI\bin\Debug\net10.0</LANCommanderServerUIArtifacts>
     <LANCommanderServerServicesArtifacts Condition="'$(LANCommanderServerServicesArtifacts)' == ''">$(LANCommanderRoot)\LANCommander.Server.Services\bin\Debug\net10.0</LANCommanderServerServicesArtifacts>
     <LANCommanderServerDataArtifacts Condition="'$(LANCommanderServerDataArtifacts)' == ''">$(LANCommanderRoot)\LANCommander.Server.Data\bin\Debug\net10.0</LANCommanderServerDataArtifacts>
-    <LANCommanderPackagingArtifacts Condition="'$(LANCommanderPackagingArtifacts)' == ''">$(LANCommanderRoot)\LANCommander.Packaging\bin\Debug\net10.0</LANCommanderPackagingArtifacts>
-    <LANCommanderPackagingAbstractionsArtifacts Condition="'$(LANCommanderPackagingAbstractionsArtifacts)' == ''">$(LANCommanderRoot)\LANCommander.Packaging.Abstractions\bin\Debug\net10.0</LANCommanderPackagingAbstractionsArtifacts>
+    <LANCommanderServerImportExportArtifacts Condition="'$(LANCommanderServerImportExportArtifacts)' == ''">$(LANCommanderRoot)\LANCommander.Server.ImportExport\bin\Debug\net10.0</LANCommanderServerImportExportArtifacts>
   </PropertyGroup>
 </Project>

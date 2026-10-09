@@ -25,7 +25,7 @@ public sealed class RecompCatalogPlugin : IPlugin
 
     public string Id => PluginId;
     public string Name => "Recomp Catalog";
-    public string Version => "0.3.0";
+    public string Version => "0.4.0";
     public string Author => "Aaron Powell";
 
     public void ConfigureServices(IServiceCollection services)
@@ -48,6 +48,7 @@ public sealed class RecompCatalogPlugin : IPlugin
                 serviceProvider.GetRequiredService<RecompCatalogHttpClient>().Client,
                 GitHubAuthentication.FromEnvironment().Token));
         services.AddSingleton<CatalogBrowserService>();
+        services.AddScoped<CatalogImportWorkflow>();
         services.AddScoped<ICatalogHostIntegration>(serviceProvider =>
             new CatalogHostIntegration(
                 serviceProvider.GetRequiredService<GameService>(),

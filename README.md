@@ -33,9 +33,9 @@ yet.
 ```powershell
 $env:LANCOMMANDER_ROOT = "D:\copilot-app\copilot-worktrees\LANCommander\aaronpowell-potential-funicular"
 dotnet build "$env:LANCOMMANDER_ROOT\LANCommander.SDK\LANCommander.SDK.csproj" -f net10.0
-dotnet build "$env:LANCOMMANDER_ROOT\LANCommander.Packaging\LANCommander.Packaging.csproj" -f net10.0
 dotnet build "$env:LANCOMMANDER_ROOT\LANCommander.Server.Data\LANCommander.Server.Data.csproj"
 dotnet build "$env:LANCOMMANDER_ROOT\LANCommander.Server.Services\LANCommander.Server.Services.csproj"
+dotnet build "$env:LANCOMMANDER_ROOT\LANCommander.Server.ImportExport\LANCommander.Server.ImportExport.csproj"
 dotnet build "$env:LANCOMMANDER_ROOT\LANCommander.Server.Plugins\LANCommander.Server.Plugins.csproj"
 dotnet build "$env:LANCOMMANDER_ROOT\LANCommander.Server.UI\LANCommander.Server.UI.csproj"
 dotnet build Hex1bCatalog.slnx
@@ -43,10 +43,10 @@ dotnet test Hex1bCatalog.Tests\Hex1bCatalog.Tests.csproj
 ```
 
 You can also pass `-p:LANCommanderRoot=D:\src\LANCommander`. The build resolves
-`LANCommander.SDK.dll`, `LANCommander.Packaging.dll`,
-`LANCommander.Packaging.Abstractions.dll`, `LANCommander.Server.Plugins.dll`, and
-`LANCommander.Server.UI.dll`, `LANCommander.Server.Services.dll`, and
-`LANCommander.Server.Data.dll` from each project's `bin\Debug\net10.0` directory.
+`LANCommander.SDK.dll`, `LANCommander.Server.Plugins.dll`, and
+`LANCommander.Server.UI.dll`, `LANCommander.Server.Services.dll`,
+`LANCommander.Server.Data.dll`, and `LANCommander.Server.ImportExport.dll` from each project's
+`bin\Debug\net10.0` directory.
 
 ## Server plugin
 
@@ -84,6 +84,20 @@ automatically, and a zero-result search displays an explicit empty state with gu
 the query or continue with manual entry. Catalog and release provenance remain read-only and
 separate from the editable metadata draft.
 
+After review, the plugin downloads the selected release asset into controlled temporary storage,
+enforces the prototype's compressed-size, expanded-size, entry-count, expansion-ratio, path, and
+symbolic-link safety checks, and normalizes ZIP or single-EXE releases without executing them. The
+administrator explicitly chooses the primary executable when several candidates exist. The plugin
+then builds an LCX carrying the edited metadata and immutable provenance, and streams it through
+LANCommander's canonical `ImportRunner` pipeline. Temporary downloads and LCX files are removed on
+discard, successful import, component disposal, and failed preparation.
+
+The generated LCX also includes a deterministic game `Package` script. LANCommander's existing
+package schedule can run it to compare the imported game version with the repository's latest
+GitHub release, select an asset using the saved filter/name/format policy, and return
+`New-Package` only when a different release is available. The script validates that the saved
+executable path still exists in the new payload before returning an update.
+
 The plugin is independent of Quiver and does not bundle a catalog snapshot. Quiver inspired the
 workflow, and compatible public feeds are treated as untrusted remote input: invalid URLs, HTTP
 errors, malformed documents, empty feeds, and release lookup failures are displayed to the
@@ -114,22 +128,20 @@ explicit unconfigured state. GitHub release preview uses `GH_TOKEN` or `GITHUB_T
 matching the prototype conventions; unauthenticated public-repository lookup remains supported at
 GitHub's lower rate limit.
 
-The current import boundary is intentionally preparation-only. Final confirmation stays disabled
-until the plugin can hand the selected release asset through artifact download/normalization,
-executable selection, LCX creation, and LANCommander server game/archive ingestion without faking
-success. LANCommander currently exposes its metadata providers, but the game-creation UI's
-field-by-field merge and persistence operation is component-local and ends by creating/updating a
-game. The plugin therefore reuses provider search/fetch behavior and presents a non-persisting
-review rather than invoking that terminal import action early.
+The current import boundary uses LANCommander's host-provided `ImportRunner.RunStreamAsync`, which
+reuses the same import context, queue preparation, archive storage, and persistence path as the
+server API. The plugin never writes game/archive rows directly. The imported package carries the
+catalog identity, exact release identity, and serialized update policy so later catalog refreshes
+can classify existing games without title matching.
 
-The host contract, UI, and packaging assemblies (`LANCommander.SDK`,
+The host contract, UI, service, and import assemblies (`LANCommander.SDK`,
 `LANCommander.Server.Plugins`, `LANCommander.Server.UI`, `LANCommander.Server.Services`,
-`LANCommander.Server.Data`, `LANCommander.Packaging`, and `LANCommander.Packaging.Abstractions`)
+`LANCommander.Server.Data`, and `LANCommander.Server.ImportExport`)
 are referenced with `Private="false"`. Plugin output
-contains the plugin plus its private `Hex1bCatalog.Core` and `Hex1bCatalog.Providers` assemblies,
-but no host or Radzen binaries. This is required: the server must provide the already-loaded
-copies so contract types and Razor controls keep a single identity across the plugin's isolated
-load context.
+contains the plugin plus its private `Hex1bCatalog.Core`, `Hex1bCatalog.Infrastructure`, and
+`Hex1bCatalog.Providers` assemblies, but no host or Radzen binaries. This is required: the server
+must provide the already-loaded copies so contract types and Razor controls keep a single identity
+across the plugin's isolated load context.
 
 `LANCommander.Server.UI` is not published as a NuGet package yet. The explicit assembly reference
 is a temporary development bridge; set `LANCommanderRoot` (or `LANCOMMANDER_ROOT`) to a built
@@ -149,7 +161,8 @@ Start the server and sign in as an administrator. The sidebar gains a "Recomp Ca
 startup logs `Loaded plugin 'Recomp Catalog' (dev.aaronpowell.lancommander.recompcatalog)`. The
 page at `/Plugins/RecompCatalog` renders its loading, failure, empty, filters, imported/update
 states, details, release check, and lookup-assisted preparation with
-`LANCommander.Server.UI.Controls`.
+`LANCommander.Server.UI.Controls`. Import then downloads and normalizes the selected asset, requires
+an executable selection, builds an LCX, and submits it to LANCommander's canonical importer.
 
 The navigation entry only controls visibility. Access is enforced by the server from the page's
 `[PluginAccess(PluginAccessLevel.Administrator)]` declaration, and a plugin page that declares
