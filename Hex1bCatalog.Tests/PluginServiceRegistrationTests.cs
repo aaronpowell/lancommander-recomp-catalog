@@ -33,6 +33,11 @@ public class PluginServiceRegistrationTests
         Assert.NotNull(provider.GetRequiredService<IServerRouteAssemblyExtension>());
         using var scope = provider.CreateScope();
         Assert.NotNull(scope.ServiceProvider.GetRequiredService<ICatalogHostIntegration>());
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<CatalogImportWorkflow>());
+        using var otherScope = provider.CreateScope();
+        Assert.Same(
+            scope.ServiceProvider.GetRequiredService<CatalogImportGate>(),
+            otherScope.ServiceProvider.GetRequiredService<CatalogImportGate>());
     }
 
     private sealed class StubCatalogHostIntegration : ICatalogHostIntegration

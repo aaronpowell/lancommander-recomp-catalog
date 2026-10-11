@@ -74,6 +74,42 @@ state and does not call release providers per entry. A release check is explicit
 provider, repository, tag, selected asset name, and asset URL identity. A difference is reported as
 an available update without assuming arbitrary tags are SemVer or claiming which tag is newer.
 
+### Re-import safety
+
+The browser only imports **new games**. For each selected release asset, it shows one of these
+outcomes before download:
+
+- The exact provider/repository/tag/asset name/asset URL is already imported: preparation is
+  disabled. A stale or concurrent request for that same release is a successful **no-op**, not
+  another import; it does not build an LCX, call the importer, or change game/archive/metadata rows.
+- The existing game has a different release or asset: an **update available** warning is shown,
+  and replacement import is disabled. Use the existing game's LANCommander Package-script
+  update workflow rather than importing another game or replacing its metadata.
+- The imported release is unknown (including legacy packages), multiple games match the catalog
+  identity, or host state cannot be verified: import is blocked with an explicit warning.
+
+Existing-game replacement is deliberately unsupported here: a warning explains that re-import
+could overwrite locally edited metadata. There is no force/overwrite button or implicit consent.
+This conservatively protects all existing metadata, without claiming to detect individual local
+edits or relying on importer merge behavior.
+
+Immediately before package building, the plugin rereads LANCommander state inside a shared,
+in-process import gate. Concurrent browser sessions on the same server cannot both pass the
+new-game check. The canonical catalog identity matches games even when their local title or
+catalog display name changes; deterministic legacy IDs remain a fallback. This is not a database
+transaction or distributed lock: imports made outside this plugin or on another server process
+are not serialized. End-to-end client installation, host merge behavior, and cross-process races
+still require separate acceptance testing against a disposable LANCommander instance.
+
+Run the focused, offline re-import acceptance tests (using the built host assemblies described above):
+
+```powershell
+dotnet test Hex1bCatalog.Tests\Hex1bCatalog.Tests.csproj --filter "FullyQualifiedName~CatalogImportSafetyTests|FullyQualifiedName~CatalogBrowserTests|FullyQualifiedName~PluginServiceRegistrationTests" --nologo --verbosity quiet
+```
+
+These tests use in-memory host state and importer callbacks; they do not deploy the plugin or
+connect to a live LANCommander database.
+
 Selecting a release asset creates a reviewable import preparation containing immutable catalog and
 release provenance plus the future Package-script policy: repository provider/path, release asset
 filter, selected asset, archive format, and normalization behavior. Metadata lookup is then

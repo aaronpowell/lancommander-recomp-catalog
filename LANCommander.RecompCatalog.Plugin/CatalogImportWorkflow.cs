@@ -13,11 +13,14 @@ internal sealed record PreparedImportArtifact(
 internal sealed record CatalogImportResult(
     Guid GameId,
     int ImportedCount,
-    CatalogImportProvenance Provenance);
+    CatalogImportProvenance Provenance,
+    bool AlreadyImported = false);
 
 internal sealed class CatalogImportWorkflow(
     RecompCatalogHttpClient httpClient,
-    IServiceProvider serviceProvider)
+    IServiceProvider serviceProvider,
+    ICatalogHostIntegration host,
+    CatalogImportGate gate)
 {
     private readonly IArtifactNormalizer _normalizer = new ArtifactNormalizer(httpClient.Client);
     private readonly IPackageBuilder _packages = new LcxPackageBuilder();
@@ -51,7 +54,7 @@ internal sealed class CatalogImportWorkflow(
         }
     }
 
-    internal async Task<CatalogImportResult> ImportAsync(
+    internal Task<CatalogImportResult> ImportAsync(
         ImportPreparation preparation,
         PreparedImportArtifact prepared,
         string executable,
@@ -62,13 +65,31 @@ internal sealed class CatalogImportWorkflow(
         ArgumentNullException.ThrowIfNull(prepared);
         ArgumentException.ThrowIfNullOrWhiteSpace(executable);
 
+        return gate.RunAsync(
+            preparation,
+            host,
+            token => ImportNewAsync(preparation, prepared, executable, progress, token),
+            cancellationToken);
+    }
+
+    private async Task<CatalogImportResult> ImportNewAsync(
+        ImportPreparation preparation,
+        PreparedImportArtifact prepared,
+        string executable,
+        IProgress<string>? progress,
+        CancellationToken cancellationToken)
+    {
         var packagePath = Path.Combine(
             prepared.WorkingDirectory,
             $"{Guid.NewGuid():N}.lcx");
         var policy = preparation.Provenance.UpdatePolicy is null
             ? null
             : preparation.Provenance.UpdatePolicy with { ExecutablePath = executable };
-        var provenance = preparation.Provenance with { UpdatePolicy = policy };
+        var provenance = preparation.Provenance with
+        {
+            UpdatePolicy = policy,
+            GameTitle = preparation.Metadata?.ToMetadataLookupResult().Title ?? preparation.Provenance.GameTitle,
+        };
 
         try
         {

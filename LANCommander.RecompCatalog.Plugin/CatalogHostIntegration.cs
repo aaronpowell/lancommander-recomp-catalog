@@ -46,7 +46,16 @@ public sealed class CatalogHostIntegration(
             .Include(game => game.CustomFields!, game => game.Versions!)
             .GetAsync()
             .WaitAsync(cancellationToken);
-        var byCatalogIdentity = games
+        return MapImportedStates(entries, games, cancellationToken);
+    }
+
+    internal static IReadOnlyDictionary<string, CatalogEntryStateView> MapImportedStates(
+        IReadOnlyList<CatalogBrowserEntry> entries,
+        IEnumerable<DataGame> games,
+        CancellationToken cancellationToken = default)
+    {
+        var gameList = games.ToList();
+        var byCatalogIdentity = gameList
             .Select(game => new
             {
                 Game = game,
@@ -55,8 +64,8 @@ public sealed class CatalogHostIntegration(
             })
             .Where(item => !string.IsNullOrWhiteSpace(item.Identity))
             .GroupBy(item => item.Identity!, StringComparer.Ordinal)
-            .ToDictionary(group => group.Key, group => group.First().Game, StringComparer.Ordinal);
-        var byGameId = games.ToDictionary(game => game.Id);
+            .ToDictionary(group => group.Key, group => group.Select(item => item.Game).ToList(), StringComparer.Ordinal);
+        var byGameId = gameList.ToDictionary(game => game.Id);
         var states = new Dictionary<string, CatalogEntryStateView>(StringComparer.Ordinal);
 
         foreach (var entry in entries)
@@ -65,7 +74,15 @@ public sealed class CatalogHostIntegration(
 
             var legacyGameId = StableId.Create(
                 $"game:{entry.CatalogEntry.Repository.ToLowerInvariant()}:{entry.CatalogEntry.Name}");
-            if (!byCatalogIdentity.TryGetValue(entry.Identity.Value, out var game)
+            if (byCatalogIdentity.TryGetValue(entry.Identity.Value, out var matches) && matches.Count != 1)
+            {
+                states[entry.Id] = CatalogEntryStateClassifier.Classify(
+                    null, failure: "Multiple LANCommander games have this catalog identity. Resolve duplicates before importing.");
+                continue;
+            }
+
+            var game = matches?.Single();
+            if (game is null
                 && !byGameId.TryGetValue(legacyGameId, out game))
             {
                 states[entry.Id] = CatalogEntryStateView.NeverImported();

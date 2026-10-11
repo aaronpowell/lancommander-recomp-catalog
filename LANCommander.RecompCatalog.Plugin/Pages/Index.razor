@@ -10,7 +10,7 @@
 
 <PageHeader Title="Recomp Catalog" Subtitle="Browse compatible community recompilation feeds">
     <Extra>
-        <Button Icon="IconType.ArrowClockwise" OnClick="ReloadAsync">
+        <Button Icon="IconType.ArrowClockwise" Disabled="@_importBusy" OnClick="ReloadAsync">
             Reload
         </Button>
     </Extra>
@@ -115,6 +115,7 @@
                                     }
                                 </div>
                                 <Button Small
+                                        Disabled="@_importBusy"
                                         Primary="@(ReferenceEquals(_selected, entry))"
                                         OnClick="() => SelectEntry(entry)">
                                     View details
@@ -179,7 +180,7 @@
                                 }
                                 <Button Primary
                                         Icon="IconType.Package"
-                                        Disabled="@(!_selected.CatalogEntry.IsGitHub)"
+                                        Disabled="@(_importBusy || !_selected.CatalogEntry.IsGitHub)"
                                         Loading="@(_preview?.Status == ImportPreviewStatus.Loading)"
                                         OnClick="OpenPreviewAsync">
                                     Check release and prepare
@@ -225,12 +226,20 @@
 
                                     @foreach (var asset in _preview.Release.Assets)
                                     {
+                                        var assessment = AssessAsset(asset);
                                         <Card Small Borderless
                                               Title="@asset.Name"
                                               Subtitle="@FormatSize(asset.Size)"
                                               Style="margin-bottom: 8px">
+                                            @if (!assessment.CanImport)
+                                            {
+                                                <Alert Warning Title="@(assessment.Disposition == CatalogImportDisposition.UpdateAvailable ? "Update available - replacement blocked" : "Re-import safety")">
+                                                    @assessment.Message
+                                                </Alert>
+                                            }
                                             <Button Small
                                                     Primary
+                                                    Disabled="@(_importBusy || !assessment.CanImport)"
                                                     OnClick="() => BeginPreparation(asset)">
                                                 Prepare this asset
                                             </Button>
@@ -431,10 +440,21 @@
 
                                             @if (_importResult is not null)
                                             {
-                                                <Alert Success Title="Game imported">
-                                                    LANCommander imported @_importResult.ImportedCount record(s) as game
-                                                    <Typography Code>@_importResult.GameId</Typography>.
-                                                </Alert>
+                                                @if (_importResult.AlreadyImported)
+                                                {
+                                                    <Alert Info Title="Already imported - no changes">
+                                                        This exact release and asset are already present as game
+                                                        <Typography Code>@_importResult.GameId</Typography>.
+                                                        Existing archives and locally edited metadata were left unchanged.
+                                                    </Alert>
+                                                }
+                                                else
+                                                {
+                                                    <Alert Success Title="Game imported">
+                                                        LANCommander imported @_importResult.ImportedCount record(s) as game
+                                                        <Typography Code>@_importResult.GameId</Typography>.
+                                                    </Alert>
+                                                }
                                             }
                                             else if (_preparedArtifact is null)
                                             {
@@ -649,6 +669,7 @@
             return;
 
         var entry = _selected;
+        ResetPreparation();
         var operation = BeginOperation();
         _preview = new ImportPreview(ImportPreviewStatus.Loading, entry);
 
@@ -682,7 +703,8 @@
                         {
                             ImportState = states.TryGetValue(entry.Id, out var state)
                                 ? state
-                                : CatalogEntryStateView.NeverImported(),
+                                : CatalogEntryStateClassifier.Classify(
+                                    null, failure: "LANCommander returned no state for this entry."),
                         })
                         .ToList(),
                 };
@@ -746,10 +768,22 @@
             ApplyFilter();
         }
 
+        CatalogImportAssessment AssessAsset(ReleaseAsset asset) =>
+            CatalogImportSafety.Assess(
+                _selected!.ImportState,
+                ReleaseIdentity.Create(_selected.Identity, _preview!.Release!, asset));
+
         void BeginPreparation(ReleaseAsset asset)
         {
-            if (_selected is null || _preview?.Release is null)
+            if (_importBusy || _selected is null || _preview?.Release is null)
                 return;
+
+            var assessment = AssessAsset(asset);
+            if (!assessment.CanImport)
+            {
+                _importError = assessment.Message;
+                return;
+            }
 
             DiscardPreparedArtifact();
             var release = _preview.Release;
@@ -960,11 +994,13 @@
                 CatalogEntryStateClassifier.Classify(
                     _importResult.Provenance,
                     _preparation.Provenance.Release));
-            _importProgress = "Import complete.";
+            _importProgress = _importResult.AlreadyImported
+                ? "Already imported. No changes were made."
+                : "Import complete.";
             var cleanupError = CatalogImportWorkflow.Cleanup(_preparedArtifact);
             if (!string.IsNullOrWhiteSpace(cleanupError))
             {
-                _importError = $"The game was imported, but temporary files could not be removed: {cleanupError}";
+                _importError = $"Temporary files could not be removed: {cleanupError}";
             }
             _preparedArtifact = null;
             _selectedExecutable = "";

@@ -11,6 +11,7 @@
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <InternalsVisibleTo Include="Hex1bCatalog.Tests" />
   </ItemGroup>
 
   <ItemGroup>

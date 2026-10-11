@@ -48,6 +48,7 @@ public sealed class RecompCatalogPlugin : IPlugin
                 serviceProvider.GetRequiredService<RecompCatalogHttpClient>().Client,
                 GitHubAuthentication.FromEnvironment().Token));
         services.AddSingleton<CatalogBrowserService>();
+        services.AddSingleton<CatalogImportGate>();
         services.AddScoped<CatalogImportWorkflow>();
         services.AddScoped<ICatalogHostIntegration>(serviceProvider =>
             new CatalogHostIntegration(
