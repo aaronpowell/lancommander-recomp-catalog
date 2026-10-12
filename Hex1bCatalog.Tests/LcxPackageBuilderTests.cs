@@ -151,7 +151,13 @@ public class LcxPackageBuilderTests
             using var packageScriptReader = new StreamReader(packageScriptStream);
             var packageScriptContents = await packageScriptReader.ReadToEndAsync();
             Assert.Contains("owner/repository", packageScriptContents, StringComparison.Ordinal);
-            Assert.Contains("$Game.Version", packageScriptContents, StringComparison.Ordinal);
+            Assert.Contains("$Game.Archives", packageScriptContents, StringComparison.Ordinal);
+            Assert.Contains("$latestArchive.Version", packageScriptContents, StringComparison.Ordinal);
+            Assert.Contains(
+                "if ($latestArchive -and $version -eq [string] $latestArchive.Version) {",
+                packageScriptContents,
+                StringComparison.Ordinal);
+            Assert.DoesNotContain("$Game.Version", packageScriptContents, StringComparison.Ordinal);
             Assert.Contains("New-Package", packageScriptContents, StringComparison.Ordinal);
             Assert.Contains("bin/game.exe", packageScriptContents, StringComparison.Ordinal);
         }

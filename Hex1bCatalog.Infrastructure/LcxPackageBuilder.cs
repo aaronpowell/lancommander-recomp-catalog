@@ -185,7 +185,8 @@ public sealed class LcxPackageBuilder : IPackageBuilder
             }
 
             $version = [string] $release.tag_name
-            if ($version -eq $Game.Version) {
+            $latestArchive = $Game.Archives | Sort-Object CreatedOn -Descending | Select-Object -First 1
+            if ($latestArchive -and $version -eq [string] $latestArchive.Version) {
                 return
             }
 
