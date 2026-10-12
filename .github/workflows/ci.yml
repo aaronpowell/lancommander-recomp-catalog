@@ -39,11 +39,11 @@ jobs:
           dotnet build .\lancommander\LANCommander.Server.Plugins\LANCommander.Server.Plugins.csproj -c Debug
           dotnet build .\lancommander\LANCommander.Server.UI\LANCommander.Server.UI.csproj -c Debug
 
-      - name: Build and test prototype
+      - name: Build and test plugin
         shell: pwsh
         run: |
-          dotnet build .\Hex1bCatalog.slnx -c Debug -p:LANCommanderRoot="$env:GITHUB_WORKSPACE\lancommander"
-          dotnet test .\Hex1bCatalog.Tests\Hex1bCatalog.Tests.csproj -c Debug --no-build -p:LANCommanderRoot="$env:GITHUB_WORKSPACE\lancommander"
+          dotnet build .\LANCommander.RecompCatalog.slnx -c Debug -p:LANCommanderRoot="$env:GITHUB_WORKSPACE\lancommander"
+          dotnet test .\LANCommander.RecompCatalog.Tests\LANCommander.RecompCatalog.Tests.csproj -c Debug --no-build -p:LANCommanderRoot="$env:GITHUB_WORKSPACE\lancommander"
 
       - name: Verify plugin does not ship host assemblies
         shell: pwsh

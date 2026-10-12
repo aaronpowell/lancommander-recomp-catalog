@@ -1,5 +1,5 @@
-using Hex1bCatalog.Core;
-using Hex1bCatalog.Infrastructure;
+using LANCommander.RecompCatalog.Core;
+using LANCommander.RecompCatalog.Infrastructure;
 using LANCommander.RecompCatalog.Plugin;
 using LANCommander.SDK.Plugins;
 using LANCommander.Server.Plugins;

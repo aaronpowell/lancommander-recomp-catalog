@@ -1,4 +1,4 @@
-using Hex1bCatalog.Core;
+using LANCommander.RecompCatalog.Core;
 using LANCommander.Server.Services;
 using LANCommander.Server.Services.Providers.Metadata;
 using System.Text.Json;

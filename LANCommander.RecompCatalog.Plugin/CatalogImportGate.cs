@@ -1,4 +1,4 @@
-using Hex1bCatalog.Core;
+using LANCommander.RecompCatalog.Core;
 
 namespace LANCommander.RecompCatalog.Plugin;
 

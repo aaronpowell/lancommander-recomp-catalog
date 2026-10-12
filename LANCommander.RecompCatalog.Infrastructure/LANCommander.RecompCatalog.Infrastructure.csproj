@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LANCommander.RecompCatalog.Core\LANCommander.RecompCatalog.Core.csproj" />
+    <ProjectReference Include="..\LANCommander.RecompCatalog.Providers\LANCommander.RecompCatalog.Providers.csproj" />
+    <PackageReference Include="YamlDotNet" Version="16.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="LANCommander.SDK" HintPath="$(LANCommanderSdkArtifacts)\LANCommander.SDK.dll" Private="true" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="LANCommander.RecompCatalog.Tests" />
+  </ItemGroup>
+
+  <Target Name="RequireLANCommanderAssemblies" BeforeTargets="ResolveReferences">
+    <Error Condition="!Exists('$(LANCommanderSdkArtifacts)\LANCommander.SDK.dll')"
+           Text="LANCommander.SDK.dll was not found. Build the pinned LANCommander source and set LANCommanderRoot. See README.md." />
+  </Target>
+
+</Project>

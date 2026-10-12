@@ -1,29 +1,31 @@
-# LANCommander Recomp Catalog Prototype
+# LANCommander Recomp Catalog
 
-A Phase 0 proof-of-concept for turning a Quiver-compatible application catalog entry and a
-GitHub release asset into a LANCommander LCX package.
+A LANCommander server plugin that browses a Quiver-compatible application catalog and imports a
+GitHub release asset into LANCommander as a game, via an LCX package and LANCommander's canonical
+importer.
 
 This project is independent of Quiver and is not affiliated with, maintained by, sponsored by,
 or endorsed by Quiver or its maintainers. Quiver inspired the workflow, and its public community
-catalog feed format and data are compatibility inputs only. The prototype does not bundle,
+catalog feed format and data are compatibility inputs only. The plugin does not bundle,
 mirror, or depend on the Quiver application.
 
-## Prototype workflow
+## Workflow
 
 1. Load a configurable catalog index.
-2. Browse GitHub-backed entries in a Hex1b terminal UI.
+2. Browse GitHub-backed entries in the LANCommander server UI.
 3. Resolve the latest GitHub release and select a Windows ZIP or EXE asset.
-4. Download, hash, and normalize the payload without executing it.
-5. Select the primary executable.
-6. Generate an LCX with deterministic game/archive IDs and source provenance.
+4. Look up and edit metadata.
+5. Download, hash, and normalize the payload without executing it.
+6. Select the primary executable.
+7. Generate an LCX with deterministic game/archive IDs and source provenance, and import it.
 
 ZIP normalization rejects rooted and traversal paths, limits download/expanded sizes, limits
-entry counts and expansion ratios, and requires at least one executable. This is a prototype,
-not a trust guarantee: administrators must review upstream projects and release artifacts.
+entry counts and expansion ratios, and requires at least one executable. This is not a trust
+guarantee: administrators must review upstream projects and release artifacts.
 
 ## Build
 
-The prototype intentionally references locally built LANCommander DLLs until the packaging and
+The plugin intentionally references locally built LANCommander DLLs until the packaging and
 plugin APIs are distributed as stable packages. CI pins
 [`aaronpowell/LANCommander`](https://github.com/aaronpowell/LANCommander) at
 `3a8cec3ff5cdf7b3c71d5042117eb168865c1c0e`, which carries the current
@@ -38,8 +40,8 @@ dotnet build "$env:LANCOMMANDER_ROOT\LANCommander.Server.Services\LANCommander.S
 dotnet build "$env:LANCOMMANDER_ROOT\LANCommander.Server.ImportExport\LANCommander.Server.ImportExport.csproj"
 dotnet build "$env:LANCOMMANDER_ROOT\LANCommander.Server.Plugins\LANCommander.Server.Plugins.csproj"
 dotnet build "$env:LANCOMMANDER_ROOT\LANCommander.Server.UI\LANCommander.Server.UI.csproj"
-dotnet build Hex1bCatalog.slnx
-dotnet test Hex1bCatalog.Tests\Hex1bCatalog.Tests.csproj
+dotnet build LANCommander.RecompCatalog.slnx
+dotnet test LANCommander.RecompCatalog.Tests\LANCommander.RecompCatalog.Tests.csproj
 ```
 
 You can also pass `-p:LANCommanderRoot=D:\src\LANCommander`. The build resolves
@@ -62,7 +64,7 @@ selectable Windows ZIP/EXE assets without downloading them.
 
 Catalog entries now have a canonical identity built from the configured feed, source list,
 repository provider/path, and stable entry key. LANCommander games are matched by the
-`RecompCatalog.Identity` custom field; packages produced by the prototype write that field plus
+`RecompCatalog.Identity` custom field; packages produced by the plugin write that field plus
 the exact `RecompCatalog.Release` identity and serialized `RecompCatalog.UpdatePolicy`. Existing
 prototype packages that predate those fields
 are detected conservatively by their deterministic game ID, but their exact imported release is
@@ -104,7 +106,7 @@ still require separate acceptance testing against a disposable LANCommander inst
 Run the focused, offline re-import acceptance tests (using the built host assemblies described above):
 
 ```powershell
-dotnet test Hex1bCatalog.Tests\Hex1bCatalog.Tests.csproj --filter "FullyQualifiedName~CatalogImportSafetyTests|FullyQualifiedName~CatalogBrowserTests|FullyQualifiedName~PluginServiceRegistrationTests" --nologo --verbosity quiet
+dotnet test LANCommander.RecompCatalog.Tests\LANCommander.RecompCatalog.Tests.csproj --filter "FullyQualifiedName~CatalogImportSafetyTests|FullyQualifiedName~CatalogBrowserTests|FullyQualifiedName~PluginServiceRegistrationTests" --nologo --verbosity quiet
 ```
 
 These tests use in-memory host state and importer callbacks; they do not deploy the plugin or
@@ -121,7 +123,7 @@ the query or continue with manual entry. Catalog and release provenance remain r
 separate from the editable metadata draft.
 
 After review, the plugin downloads the selected release asset into controlled temporary storage,
-enforces the prototype's compressed-size, expanded-size, entry-count, expansion-ratio, path, and
+enforces the plugin's compressed-size, expanded-size, entry-count, expansion-ratio, path, and
 symbolic-link safety checks, and normalizes ZIP or single-EXE releases without executing them. The
 administrator explicitly chooses the primary executable when several candidates exist. The plugin
 then builds an LCX carrying the edited metadata and immutable provenance, and streams it through
@@ -129,10 +131,10 @@ LANCommander's canonical `ImportRunner` pipeline. Temporary downloads and LCX fi
 discard, successful import, component disposal, and failed preparation.
 
 The generated LCX also includes a deterministic game `Package` script. LANCommander's existing
-package schedule can run it to compare the imported game version with the repository's latest
-GitHub release, select an asset using the saved filter/name/format policy, and return
-`New-Package` only when a different release is available. The script validates that the saved
-executable path still exists in the new payload before returning an update.
+package schedule can run it to compare the newest archive version of the imported game with the
+repository's latest GitHub release tag, select an asset using the saved filter/name/format policy,
+and return `New-Package` only when a different release is available. The script validates that the
+saved executable path still exists in the new payload before returning an update.
 
 The plugin is independent of Quiver and does not bundle a catalog snapshot. Quiver inspired the
 workflow, and compatible public feeds are treated as untrusted remote input: invalid URLs, HTTP
@@ -141,7 +143,7 @@ administrator rather than silently replaced with fallback data.
 
 ### Catalog configuration
 
-The established prototype feed is used by default:
+The community catalog feed is used by default:
 
 ```text
 https://raw.githubusercontent.com/tgeorgiadis/quiver-community-app-catalog/main/index.json
@@ -160,9 +162,14 @@ Override it in LANCommander configuration with:
 ```
 
 The URL must be absolute HTTPS. Set `Plugins:RecompCatalog:FeedUrl` to an empty value to show the
-explicit unconfigured state. GitHub release preview uses `GH_TOKEN` or `GITHUB_TOKEN` when present,
-matching the prototype conventions; unauthenticated public-repository lookup remains supported at
-GitHub's lower rate limit.
+explicit unconfigured state.
+
+GitHub release lookups use `GH_TOKEN` or `GITHUB_TOKEN` from the server's environment when
+present. The token is attached only to `api.github.com` requests and is never written to disk or
+included in LCX metadata. Public repositories require no token permissions; a fine-grained token
+with public-repository access is sufficient. Unauthenticated public-repository lookup remains
+supported at GitHub's lower rate limit. When the API rejects a token or exhausts a rate limit,
+the plugin reports an actionable error and includes the reset time when GitHub provides one.
 
 The current import boundary uses LANCommander's host-provided `ImportRunner.RunStreamAsync`, which
 reuses the same import context, queue preparation, archive storage, and persistence path as the
@@ -174,8 +181,9 @@ The host contract, UI, service, and import assemblies (`LANCommander.SDK`,
 `LANCommander.Server.Plugins`, `LANCommander.Server.UI`, `LANCommander.Server.Services`,
 `LANCommander.Server.Data`, and `LANCommander.Server.ImportExport`)
 are referenced with `Private="false"`. Plugin output
-contains the plugin plus its private `Hex1bCatalog.Core`, `Hex1bCatalog.Infrastructure`, and
-`Hex1bCatalog.Providers` assemblies, but no host or Radzen binaries. This is required: the server
+contains the plugin plus its private `LANCommander.RecompCatalog.Core`,
+`LANCommander.RecompCatalog.Infrastructure`, and `LANCommander.RecompCatalog.Providers`
+assemblies, but no host or Radzen binaries. This is required: the server
 must provide the already-loaded copies so contract types and Razor controls keep a single identity
 across the plugin's isolated load context.
 
@@ -215,44 +223,9 @@ already shares Server.Services and resolves its Data dependency from the default
 This repository intentionally does not modify LANCommander; update the host-side shared-assembly
 list before deploying to a build that does not share Server.UI or Server.Services.
 
-## Run
+## Known gaps
 
-```powershell
-dotnet run --project Hex1bCatalog.Tui -- `
-  --feed https://raw.githubusercontent.com/tgeorgiadis/quiver-community-app-catalog/main/index.json `
-  --output .\packages
-```
-
-Authenticate GitHub API requests to avoid the low anonymous rate limit:
-
-```powershell
-$env:GH_TOKEN = "your-token"
-# GITHUB_TOKEN is also supported.
-dotnet run --project Hex1bCatalog.Tui -- --inspect BanjoRecomp/BanjoRecomp
-```
-
-For a differently named environment variable, pass `--github-token-env VARIABLE_NAME`.
-The token is read from the environment, attached only to `api.github.com` requests, and is
-never written to disk or included in LCX metadata. Public repositories require no token
-permissions; a fine-grained token with public-repository access is sufficient.
-
-Use `--list-only` for a non-interactive feed connectivity/schema check, or
-`--inspect owner/repository` to verify release resolution and Windows asset filtering.
-
-Exercise the full normalization/manifest/LCX pipeline without network calls:
-
-```powershell
-dotnet run --project Hex1bCatalog.Tui -- `
-  --exercise .\path\to\fixture.zip `
-  --executable bin\game.exe `
-  --output .\packages
-```
-When the API rejects a token or exhausts a rate limit, the prototype reports an actionable
-error and includes the reset time when GitHub provides one. The initial prototype supports
-GitHub releases and Windows `.zip`/`.exe` assets.
-
-## Phase 0 gaps
-
+- Only GitHub releases and Windows `.zip`/`.exe` assets are supported.
 - GitHub's latest release endpoint is the only release provider/strategy.
 - Catalog icons and extra file acquisition are not embedded in the LCX.
 - Original-game ROM provisioning is deferred. A future plugin version should let an
@@ -261,7 +234,7 @@ GitHub releases and Windows `.zip`/`.exe` assets.
   download or bundle ROMs.
 - Initial launcher validation reached game startup after import/install, but LANCommander
   returned a 404 from `GameClient.GetAllocatedKeyAsync` while retrieving allocated keys. This
-  is tracked as a separate LANCommander launcher/server issue rather than a prototype
+  is tracked as a separate LANCommander launcher/server issue rather than a plugin
   import/package failure.
 - The operator must assess upstream licensing and supply-chain trust.
 - LCX timestamps are assigned by LANCommander packaging APIs, so IDs are deterministic but the

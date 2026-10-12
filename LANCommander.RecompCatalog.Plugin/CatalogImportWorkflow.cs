@@ -1,5 +1,5 @@
-using Hex1bCatalog.Core;
-using Hex1bCatalog.Infrastructure;
+using LANCommander.RecompCatalog.Core;
+using LANCommander.RecompCatalog.Infrastructure;
 using LANCommander.SDK.Enums;
 using LANCommander.Server.ImportExport.Services;
 using Microsoft.Extensions.DependencyInjection;

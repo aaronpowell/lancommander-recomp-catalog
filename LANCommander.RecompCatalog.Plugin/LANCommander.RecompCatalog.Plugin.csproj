@@ -11,13 +11,13 @@
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
-    <InternalsVisibleTo Include="Hex1bCatalog.Tests" />
+    <InternalsVisibleTo Include="LANCommander.RecompCatalog.Tests" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Hex1bCatalog.Core\Hex1bCatalog.Core.csproj" />
-    <ProjectReference Include="..\Hex1bCatalog.Infrastructure\Hex1bCatalog.Infrastructure.csproj" />
-    <ProjectReference Include="..\Hex1bCatalog.Providers\Hex1bCatalog.Providers.csproj" />
+    <ProjectReference Include="..\LANCommander.RecompCatalog.Core\LANCommander.RecompCatalog.Core.csproj" />
+    <ProjectReference Include="..\LANCommander.RecompCatalog.Infrastructure\LANCommander.RecompCatalog.Infrastructure.csproj" />
+    <ProjectReference Include="..\LANCommander.RecompCatalog.Providers\LANCommander.RecompCatalog.Providers.csproj" />
   </ItemGroup>
 
   <!--
