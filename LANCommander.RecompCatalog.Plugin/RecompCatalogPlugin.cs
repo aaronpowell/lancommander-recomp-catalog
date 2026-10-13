@@ -57,6 +57,7 @@ public sealed class RecompCatalogPlugin : IPlugin
         services.AddSingleton<CatalogBrowserService>();
         services.AddSingleton<CatalogImportGate>();
         services.AddScoped<CatalogImportWorkflow>();
+        services.AddScoped<ICatalogRomHost, CatalogRomHost>();
         services.AddScoped<ICatalogHostIntegration>(serviceProvider =>
             new CatalogHostIntegration(
                 serviceProvider.GetRequiredService<GameService>(),

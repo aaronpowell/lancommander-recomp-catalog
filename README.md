@@ -18,6 +18,7 @@ mirror, or depend on the Quiver application.
 5. Download, hash, and normalize the payload without executing it.
 6. Select the primary executable.
 7. Generate an LCX with deterministic game/archive IDs and source provenance, and import it.
+8. Optionally attach a ROM you supply as a LANCommander redistributable (see [ROMs](#roms)).
 
 ZIP normalization rejects rooted and traversal paths, limits download/expanded sizes, limits
 entry counts and expansion ratios, and requires at least one executable. This is not a trust
@@ -186,6 +187,39 @@ workflow, and compatible public feeds are treated as untrusted remote input: inv
 errors, malformed documents, empty feeds, and release lookup failures are displayed to the
 administrator rather than silently replaced with fallback data.
 
+### ROMs
+
+Most recomps need a dump of the original game at runtime. The plugin never downloads, bundles, or
+locates ROMs; the administrator supplies one they own. During import, the **ROM** card offers
+**No ROM**, **Upload ROM**, or **Use stored ROM**. For a game that is already imported, select it
+and use **Manage ROM** to attach, change, or remove its ROM without re-importing.
+
+- **Upload:** the file is streamed from the browser (up to 512 MiB) into temporary storage.
+  N64 dumps in v64 or n64 byte order are converted to z64 (big-endian); other formats are kept as
+  is. The SHA-1 and SHA-256 are shown so you can compare them with the hashes the project expects.
+  The plugin packages the ROM as a redistributable LCX and imports it through `ImportRunner`. Its
+  ID is derived from the SHA-256, so uploading the same dump again reuses the existing
+  redistributable. Its name, `ROM: <label> [<sha256 prefix>]`, must be unique.
+- **Stored:** pick an existing ROM redistributable that this plugin created (recognised by its
+  notes), so one dump can serve several games.
+- **Placement:** set the file name the recomp expects (for example `mm.n64.us.1.0.z64`) and the
+  folder relative to the install directory. The folder defaults to the primary executable's
+  folder, which is where portable N64 recomps keep their data. Rooted paths, `..` segments, and
+  invalid or reserved Windows names are rejected.
+
+The placement is stored as the redistributable's per-game options on the game's latest version,
+and LANCommander carries the options forward to new versions created by package updates. A game
+has at most one plugin ROM; redistributables you added by hand are left alone. Removing a ROM
+from a game keeps the stored redistributable.
+
+On each client, the redistributable's DetectInstall script reports it installed only when the
+target file exists with the expected SHA-256. Otherwise the client downloads the ROM and the
+Install script verifies its hash, checks that the target resolves inside the install directory,
+and copies it there. Both scripts use `Get-RedistributableOptions` to read the game's placement.
+
+If the game imports but the ROM step fails, the game is kept and the page explains that the ROM
+was not attached; use **Manage ROM** to retry.
+
 ### Catalog configuration
 
 The community catalog feed is used by default:
@@ -273,10 +307,9 @@ list before deploying to a build that does not share Server.UI or Server.Service
 - Only GitHub releases and Windows `.zip`/`.exe` assets are supported.
 - GitHub's latest release endpoint is the only release provider/strategy.
 - Catalog icons and extra file acquisition are not embedded in the LCX.
-- Original-game ROM provisioning is deferred. A future plugin version should let an
-  administrator provide a ROM as a LANCommander redistributable and use an
-  install/post-install script to copy it to the recomp's required path. The plugin must not
-  download or bundle ROMs.
+- ROMs must be supplied by the administrator. The plugin cannot know each recomp's expected ROM
+  file name or hash, so the administrator enters the file name and checks the hashes. ROM
+  installs use Windows client scripts only.
 - Initial launcher validation reached game startup after import/install, but LANCommander
   returned a 404 from `GameClient.GetAllocatedKeyAsync` while retrieving allocated keys. This
   is tracked as a separate LANCommander launcher/server issue rather than a plugin

@@ -21,6 +21,12 @@ public class PluginServiceRegistrationTests
         new RecompCatalogPlugin().ConfigureServices(services);
         services.RemoveAll<ICatalogHostIntegration>();
         services.AddScoped<ICatalogHostIntegration, StubCatalogHostIntegration>();
+        Assert.Contains(services, descriptor =>
+            descriptor.ServiceType == typeof(ICatalogRomHost)
+            && descriptor.ImplementationType == typeof(CatalogRomHost)
+            && descriptor.Lifetime == ServiceLifetime.Scoped);
+        services.RemoveAll<ICatalogRomHost>();
+        services.AddScoped<ICatalogRomHost, StubCatalogRomHost>();
 
         using var provider = services.BuildServiceProvider(new ServiceProviderOptions
         {
@@ -34,6 +40,7 @@ public class PluginServiceRegistrationTests
         using var scope = provider.CreateScope();
         Assert.NotNull(scope.ServiceProvider.GetRequiredService<ICatalogHostIntegration>());
         Assert.NotNull(scope.ServiceProvider.GetRequiredService<CatalogImportWorkflow>());
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<ICatalogRomHost>());
         using var otherScope = provider.CreateScope();
         Assert.Same(
             scope.ServiceProvider.GetRequiredService<CatalogImportGate>(),
@@ -61,5 +68,26 @@ public class PluginServiceRegistrationTests
             string providerGameId,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<MetadataLookupResult?>(null);
+    }
+
+    private sealed class StubCatalogRomHost : ICatalogRomHost
+    {
+        public Task<IReadOnlyList<RomRedistributableInfo>> ListRomsAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<RomRedistributableInfo>>([]);
+
+        public Task<RomRedistributableInfo> ImportRomAsync(
+            NormalizedRom rom,
+            string displayName,
+            IProgress<string>? progress = null,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<GameRomLink?> GetGameRomAsync(Guid gameId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<GameRomLink?>(null);
+
+        public Task LinkAsync(Guid gameId, Guid romId, RomPlacement placement, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task UnlinkAsync(Guid gameId, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 }

@@ -185,7 +185,23 @@
                                         OnClick="OpenPreviewAsync">
                                     Check release and prepare
                                 </Button>
+                                @if (_selected.ImportState.Imported is not null)
+                                {
+                                    <Button Icon="IconType.Cpu"
+                                            Disabled="@_importBusy"
+                                            OnClick="() => _manageRom = !_manageRom">
+                                        @(_manageRom ? "Hide ROM" : "Manage ROM")
+                                    </Button>
+                                }
                             </div>
+
+                            @if (_manageRom && _selected.ImportState.Imported is { } managed)
+                            {
+                                <RomManager GameId="@managed.GameId"
+                                            GameTitle="@managed.GameTitle"
+                                            DefaultDirectory="@RomPlacement.DirectoryForExecutable(managed.UpdatePolicy?.ExecutablePath)"
+                                            Disabled="@_importBusy" />
+                            }
 
                             @if (!_selected.CatalogEntry.IsGitHub)
                             {
@@ -455,6 +471,10 @@
                                                         <Typography Code>@_importResult.GameId</Typography>.
                                                     </Alert>
                                                 }
+                                                @if (_romWarning is not null)
+                                                {
+                                                    <Alert Warning Title="ROM not attached">@_romWarning</Alert>
+                                                }
                                             }
                                             else if (_preparedArtifact is null)
                                             {
@@ -484,6 +504,11 @@
                                                     </FormItem>
                                                     <Typography Code>@_preparedArtifact.Artifact.Sha256</Typography>
                                                 </Card>
+
+                                                <RomManager @ref="_importRom"
+                                                            DefaultDirectory="@RomPlacement.DirectoryForExecutable(_selectedExecutable)"
+                                                            GameTitle="@(_preparation?.Metadata?.Title ?? string.Empty)"
+                                                            Disabled="@_importBusy" />
 
                                                 <Button Primary
                                                         Loading="@_importBusy"
@@ -536,6 +561,9 @@
     CatalogImportResult? _importResult;
     CancellationTokenSource? _importOperation;
     string _selectedExecutable = "";
+    RomManager? _importRom;
+    bool _manageRom;
+    string? _romWarning;
     string? _importProgress;
     string? _importError;
     bool _importBusy;
@@ -660,6 +688,7 @@
         _operation?.Cancel();
         _selected = entry;
         _preview = null;
+        _manageRom = false;
         ResetPreparation();
     }
 
@@ -973,11 +1002,20 @@
         _importOperation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _importBusy = true;
         _importError = null;
+        _romWarning = null;
         _importProgress = "Building package...";
+
+        if (_importRom?.ValidationError is { } romValidation)
+        {
+            _importBusy = false;
+            _importProgress = null;
+            _importError = $"Fix the ROM step or choose No ROM: {romValidation}";
+            return;
+        }
 
         try
         {
-            var progress = new Progress<string>(message =>
+            var progress = new InlineProgress<string>(message =>
             {
                 _importProgress = message;
                 _ = InvokeAsync(StateHasChanged);
@@ -997,6 +1035,14 @@
             _importProgress = _importResult.AlreadyImported
                 ? "Already imported. No changes were made."
                 : "Import complete.";
+            if (_importRom?.HasSelection == true)
+            {
+                var romError = await _importRom.ApplyAsync(_importResult.GameId, progress, _importOperation.Token);
+                _romWarning = romError is null
+                    ? null
+                    : $"The game was imported but the ROM was not attached: {romError} Use Manage ROM to try again.";
+                _importProgress = romError is null ? $"{_importProgress} ROM attached." : _importProgress;
+            }
             var cleanupError = CatalogImportWorkflow.Cleanup(_preparedArtifact);
             if (!string.IsNullOrWhiteSpace(cleanupError))
             {
@@ -1059,6 +1105,7 @@
             _metadataEdited = false;
             _lookupCandidate = null;
             _importResult = null;
+            _romWarning = null;
         }
 
     CancellationTokenSource BeginOperation()
