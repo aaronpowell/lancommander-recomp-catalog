@@ -4,6 +4,9 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   build-and-test:
     runs-on: windows-latest
@@ -45,22 +48,38 @@ jobs:
           dotnet build .\LANCommander.RecompCatalog.slnx -c Debug -p:LANCommanderRoot="$env:GITHUB_WORKSPACE\lancommander"
           dotnet test .\LANCommander.RecompCatalog.Tests\LANCommander.RecompCatalog.Tests.csproj -c Debug --no-build -p:LANCommanderRoot="$env:GITHUB_WORKSPACE\lancommander"
 
-      - name: Verify plugin does not ship host assemblies
+      - name: Package plugin
+        id: package
         shell: pwsh
         run: |
-          $output = ".\LANCommander.RecompCatalog.Plugin\bin\Debug\net10.0"
-          $forbidden = @(
-            "LANCommander.SDK.dll",
-            "LANCommander.Server.Plugins.dll",
-            "LANCommander.Server.UI.dll",
-            "LANCommander.Server.Services.dll",
-            "LANCommander.Server.Data.dll",
-            "LANCommander.Server.ImportExport.dll",
-            "LANCommander.Packaging.dll",
-            "LANCommander.Packaging.Abstractions.dll"
-          )
-          $copied = $forbidden | Where-Object { Test-Path (Join-Path $output $_) }
-          $copied += Get-ChildItem $output -Filter "Radzen*.dll" | Select-Object -ExpandProperty Name
-          if ($copied) {
-            throw "Plugin output contains host assemblies: $($copied -join ', ')"
-          }
+          $version = if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -like 'v*') { $env:GITHUB_REF_NAME } else { '' }
+          .\build\Package-Plugin.ps1 -Version $version -LANCommanderRoot "$env:GITHUB_WORKSPACE\lancommander"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LANCommander.RecompCatalog.Plugin
+          path: |
+            artifacts/*.zip
+            artifacts/*.zip.sha256
+          if-no-files-found: error
+
+  release:
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: LANCommander.RecompCatalog.Plugin
+          path: artifacts
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" artifacts/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Recomp Catalog $GITHUB_REF_NAME" \
+            --generate-notes

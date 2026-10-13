@@ -1,3 +1,4 @@
+using System.Reflection;
 using LANCommander.RecompCatalog.Core;
 using LANCommander.RecompCatalog.Infrastructure;
 using LANCommander.RecompCatalog.Plugin;
@@ -16,16 +17,22 @@ using Microsoft.Extensions.Logging;
 namespace LANCommander.RecompCatalog.Plugin;
 
 /// <summary>
-/// Server plugin entry point for browsing compatible recompilation catalogs and previewing
-/// GitHub release assets before a future import workflow is confirmed.
+/// Server plugin entry point for browsing compatible recompilation catalogs and importing
+/// GitHub release assets into LANCommander.
 /// </summary>
 public sealed class RecompCatalogPlugin : IPlugin
 {
     internal const string PluginId = "dev.aaronpowell.lancommander.recompcatalog";
 
+    private static readonly string AssemblyVersion =
+        typeof(RecompCatalogPlugin).Assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+        ?? typeof(RecompCatalogPlugin).Assembly.GetName().Version?.ToString()
+        ?? "0.0.0";
+
     public string Id => PluginId;
     public string Name => "Recomp Catalog";
-    public string Version => "0.4.0";
+    public string Version => AssemblyVersion;
     public string Author => "Aaron Powell";
 
     public void ConfigureServices(IServiceCollection services)

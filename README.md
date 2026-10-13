@@ -23,6 +23,51 @@ ZIP normalization rejects rooted and traversal paths, limits download/expanded s
 entry counts and expansion ratios, and requires at least one executable. This is not a trust
 guarantee: administrators must review upstream projects and release artifacts.
 
+## Installation
+
+Each `v*` tag publishes a GitHub release with `LANCommander.RecompCatalog.Plugin-<version>.zip`
+and a matching `.sha256` file. The plugin needs a LANCommander server build that carries the
+plugin contracts described under [Build](#build) and the
+[host load-context prerequisite](#host-load-context-prerequisite).
+
+1. Download the ZIP and its `.sha256` file from the
+   [releases page](https://github.com/aaronpowell/lancommander-recomp-catalog/releases), and
+   verify the hash:
+
+   ```powershell
+   $zip = 'LANCommander.RecompCatalog.Plugin-0.4.0.zip'
+   $expected = (Get-Content "$zip.sha256").Split(' ')[0]
+   (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant() -eq $expected
+   ```
+
+2. Stop the LANCommander server.
+3. If you're upgrading, delete the existing `Data\Plugins\LANCommander.RecompCatalog.Plugin`
+   folder so stale assemblies are not loaded.
+4. Extract the ZIP into the server's `Data\Plugins` directory. The archive contains a single
+   `LANCommander.RecompCatalog.Plugin` folder, which must keep that name:
+
+   ```powershell
+   Expand-Archive $zip -DestinationPath '<server>\Data\Plugins'
+   ```
+
+5. Start the server and check that it logs
+   `Loaded plugin 'Recomp Catalog' (dev.aaronpowell.lancommander.recompcatalog)`.
+
+Imported games, their archives, and their Package scripts are stored by LANCommander, so they are
+kept when you upgrade or remove the plugin.
+
+### Building the package locally
+
+`build\Package-Plugin.ps1` (PowerShell 7) publishes the plugin in Release, removes symbols, fails
+if any host or Radzen assembly would be shipped, and writes the ZIP and `.sha256` to `artifacts`:
+
+```powershell
+.\build\Package-Plugin.ps1 -LANCommanderRoot $env:LANCOMMANDER_ROOT
+```
+
+The version defaults to the plugin project's `<Version>`. Pass `-Version 0.5.0` (or `v0.5.0`) to
+override it.
+
 ## Build
 
 The plugin intentionally references locally built LANCommander DLLs until the packaging and
@@ -192,8 +237,8 @@ is a temporary development bridge; set `LANCommanderRoot` (or `LANCOMMANDER_ROOT
 LANCommander checkout. The plugin does not copy Server.UI, Radzen, or any other server UI
 dependency into its deployment folder.
 
-Deploy it by copying the build output into a folder named after the assembly, under the server's
-`Data/Plugins` directory:
+For development, deploy the build output into a folder named after the assembly, under the
+server's `Data/Plugins` directory (use the [release ZIP](#installation) for other servers):
 
 ```powershell
 $dest = "$env:LANCOMMANDER_ROOT\LANCommander.Server\Data\Plugins\LANCommander.RecompCatalog.Plugin"
@@ -239,3 +284,7 @@ list before deploying to a build that does not share Server.UI or Server.Service
 - The operator must assess upstream licensing and supply-chain trust.
 - LCX timestamps are assigned by LANCommander packaging APIs, so IDs are deterministic but the
   package is not byte-for-byte reproducible.
+
+## License
+
+[MIT](LICENSE)
