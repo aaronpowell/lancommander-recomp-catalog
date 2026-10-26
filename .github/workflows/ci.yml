@@ -24,7 +24,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: aaronpowell/LANCommander
-          ref: 6c70c3cfdd041e2f74cd526cc101f8104a3349fc
+          ref: bec35feb7a70da36204d274cb82c78ea226be54d
           path: lancommander
 
       - name: Pack LANCommander packages into the local feed
