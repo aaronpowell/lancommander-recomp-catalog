@@ -24,31 +24,13 @@
   </ItemGroup>
 
   <!--
-    Host contract and UI assemblies are compile-time only (Private="false"). The server already
-    has them loaded, so the plugin must not ship private copies with conflicting type identities.
+    Host contract and UI assemblies are compile-time only. The server already has them loaded, so the
+    plugin must not ship private copies with conflicting type identities.
   -->
   <ItemGroup>
-    <Reference Include="LANCommander.SDK" HintPath="$(LANCommanderSdkArtifacts)\LANCommander.SDK.dll" Private="false" />
-    <Reference Include="LANCommander.Server.Plugins" HintPath="$(LANCommanderServerPluginsArtifacts)\LANCommander.Server.Plugins.dll" Private="false" />
-    <Reference Include="LANCommander.Server.UI" HintPath="$(LANCommanderServerUIArtifacts)\LANCommander.Server.UI.dll" Private="false" />
-    <Reference Include="LANCommander.Server.Services" HintPath="$(LANCommanderServerServicesArtifacts)\LANCommander.Server.Services.dll" Private="false" />
-    <Reference Include="LANCommander.Server.Data" HintPath="$(LANCommanderServerDataArtifacts)\LANCommander.Server.Data.dll" Private="false" />
-    <Reference Include="LANCommander.Server.ImportExport" HintPath="$(LANCommanderServerImportExportArtifacts)\LANCommander.Server.ImportExport.dll" Private="false" />
+    <PackageReference Include="LANCommander.SDK" Version="$(LANCommanderPackageVersion)" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="LANCommander.Server.Plugins" Version="$(LANCommanderPackageVersion)" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="LANCommander.Server.UI" Version="$(LANCommanderPackageVersion)" ExcludeAssets="runtime" PrivateAssets="all" />
   </ItemGroup>
-
-  <Target Name="RequireLANCommanderPluginAssemblies" BeforeTargets="ResolveReferences">
-    <Error Condition="!Exists('$(LANCommanderSdkArtifacts)\LANCommander.SDK.dll')"
-           Text="LANCommander.SDK.dll was not found. Build the pinned LANCommander source and set LANCommanderRoot. See README.md." />
-    <Error Condition="!Exists('$(LANCommanderServerPluginsArtifacts)\LANCommander.Server.Plugins.dll')"
-           Text="LANCommander.Server.Plugins.dll was not found. Build the pinned LANCommander source and set LANCommanderRoot. See README.md." />
-    <Error Condition="!Exists('$(LANCommanderServerUIArtifacts)\LANCommander.Server.UI.dll')"
-           Text="LANCommander.Server.UI.dll was not found. Build LANCommander.Server.UI and set LANCommanderRoot. See README.md." />
-    <Error Condition="!Exists('$(LANCommanderServerServicesArtifacts)\LANCommander.Server.Services.dll')"
-           Text="LANCommander.Server.Services.dll was not found. Build the pinned LANCommander source and set LANCommanderRoot. See README.md." />
-    <Error Condition="!Exists('$(LANCommanderServerDataArtifacts)\LANCommander.Server.Data.dll')"
-           Text="LANCommander.Server.Data.dll was not found. Build the pinned LANCommander source and set LANCommanderRoot. See README.md." />
-    <Error Condition="!Exists('$(LANCommanderServerImportExportArtifacts)\LANCommander.Server.ImportExport.dll')"
-           Text="LANCommander.Server.ImportExport.dll was not found. Build the pinned LANCommander source and set LANCommanderRoot. See README.md." />
-  </Target>
 
 </Project>

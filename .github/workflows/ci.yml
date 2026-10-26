@@ -13,47 +13,36 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check out pinned LANCommander source
-        uses: actions/checkout@v4
-        with:
-          # The integration-boundary server plugin and Server.UI contracts are not upstream yet,
-          # so this pins the fork commit that carries them. Repoint at LANCommander/LANCommander
-          # once they merge.
-          repository: aaronpowell/LANCommander
-          ref: 3a8cec3ff5cdf7b3c71d5042117eb168865c1c0e
-          path: lancommander
-
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
 
-      - name: Install LANCommander.Server.UI frontend dependencies
-        shell: pwsh
-        working-directory: .\lancommander\LANCommander.Server.UI
-        run: npm ci
+      # Interim: the plugin data contracts (LANCommander/LANCommander#475) are not in a published
+      # prerelease yet, so pack LANCommander.SDK, Server.Plugins and Server.UI from the pinned commit
+      # into the local feed. Remove these two steps once the contracts ship in a nuget.org prerelease.
+      - name: Check out pinned LANCommander source
+        uses: actions/checkout@v4
+        with:
+          repository: aaronpowell/LANCommander
+          ref: 6c70c3cfdd041e2f74cd526cc101f8104a3349fc
+          path: lancommander
 
-      - name: Build LANCommander assemblies
+      - name: Pack LANCommander packages into the local feed
         shell: pwsh
-        run: |
-          dotnet build .\lancommander\LANCommander.SDK\LANCommander.SDK.csproj -c Debug -f net10.0
-          dotnet build .\lancommander\LANCommander.Server.Data\LANCommander.Server.Data.csproj -c Debug
-          dotnet build .\lancommander\LANCommander.Server.Services\LANCommander.Server.Services.csproj -c Debug
-          dotnet build .\lancommander\LANCommander.Server.ImportExport\LANCommander.Server.ImportExport.csproj -c Debug
-          dotnet build .\lancommander\LANCommander.Server.Plugins\LANCommander.Server.Plugins.csproj -c Debug
-          dotnet build .\lancommander\LANCommander.Server.UI\LANCommander.Server.UI.csproj -c Debug
+        run: .\build\Pack-LANCommanderPackages.ps1 -LANCommanderRoot "$env:GITHUB_WORKSPACE\lancommander"
 
       - name: Build and test plugin
         shell: pwsh
         run: |
-          dotnet build .\LANCommander.RecompCatalog.slnx -c Debug -p:LANCommanderRoot="$env:GITHUB_WORKSPACE\lancommander"
-          dotnet test .\LANCommander.RecompCatalog.Tests\LANCommander.RecompCatalog.Tests.csproj -c Debug --no-build -p:LANCommanderRoot="$env:GITHUB_WORKSPACE\lancommander"
+          dotnet build .\LANCommander.RecompCatalog.slnx -c Debug
+          dotnet test .\LANCommander.RecompCatalog.Tests\LANCommander.RecompCatalog.Tests.csproj -c Debug --no-build
 
       - name: Package plugin
         id: package
         shell: pwsh
         run: |
           $version = if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -like 'v*') { $env:GITHUB_REF_NAME } else { '' }
-          .\build\Package-Plugin.ps1 -Version $version -LANCommanderRoot "$env:GITHUB_WORKSPACE\lancommander"
+          .\build\Package-Plugin.ps1 -Version $version
 
       - uses: actions/upload-artifact@v4
         with:

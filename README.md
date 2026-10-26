@@ -63,7 +63,7 @@ kept when you upgrade or remove the plugin.
 if any host or Radzen assembly would be shipped, and writes the ZIP and `.sha256` to `artifacts`:
 
 ```powershell
-.\build\Package-Plugin.ps1 -LANCommanderRoot $env:LANCOMMANDER_ROOT
+.\build\Package-Plugin.ps1
 ```
 
 The version defaults to the plugin project's `<Version>`. Pass `-Version 0.5.0` (or `v0.5.0`) to
@@ -71,30 +71,25 @@ override it.
 
 ## Build
 
-The plugin intentionally references locally built LANCommander DLLs until the packaging and
-plugin APIs are distributed as stable packages. CI pins
-[`aaronpowell/LANCommander`](https://github.com/aaronpowell/LANCommander) at
-`3a8cec3ff5cdf7b3c71d5042117eb168865c1c0e`, which carries the current
-integration-boundary server plugin access-policy and Server.UI contracts that are not upstream
-yet.
+The plugin builds against the LANCommander NuGet packages `LANCommander.SDK`,
+`LANCommander.Server.Plugins`, and `LANCommander.Server.UI`. Their version is
+`LANCommanderPackageVersion` in `Directory.Build.props`.
+
+The plugin needs host contracts (`IMetadataLookup`, version redistributables, and bulk custom
+field reads) from [LANCommander/LANCommander#475](https://github.com/LANCommander/LANCommander/pull/475),
+which is not in a published prerelease yet. Until it is, pack the three packages from a
+LANCommander checkout that contains that change into `artifacts\lancommander-feed`.
+`Directory.Build.props` adds that folder as a restore source when it exists:
 
 ```powershell
-$env:LANCOMMANDER_ROOT = "D:\copilot-app\copilot-worktrees\LANCommander\aaronpowell-potential-funicular"
-dotnet build "$env:LANCOMMANDER_ROOT\LANCommander.SDK\LANCommander.SDK.csproj" -f net10.0
-dotnet build "$env:LANCOMMANDER_ROOT\LANCommander.Server.Data\LANCommander.Server.Data.csproj"
-dotnet build "$env:LANCOMMANDER_ROOT\LANCommander.Server.Services\LANCommander.Server.Services.csproj"
-dotnet build "$env:LANCOMMANDER_ROOT\LANCommander.Server.ImportExport\LANCommander.Server.ImportExport.csproj"
-dotnet build "$env:LANCOMMANDER_ROOT\LANCommander.Server.Plugins\LANCommander.Server.Plugins.csproj"
-dotnet build "$env:LANCOMMANDER_ROOT\LANCommander.Server.UI\LANCommander.Server.UI.csproj"
+.\build\Pack-LANCommanderPackages.ps1 -LANCommanderRoot D:\src\LANCommander
 dotnet build LANCommander.RecompCatalog.slnx
 dotnet test LANCommander.RecompCatalog.Tests\LANCommander.RecompCatalog.Tests.csproj
 ```
 
-You can also pass `-p:LANCommanderRoot=D:\src\LANCommander`. The build resolves
-`LANCommander.SDK.dll`, `LANCommander.Server.Plugins.dll`, and
-`LANCommander.Server.UI.dll`, `LANCommander.Server.Services.dll`,
-`LANCommander.Server.Data.dll`, and `LANCommander.Server.ImportExport.dll` from each project's
-`bin\Debug\net10.0` directory.
+The pack script runs `npm ci` for `LANCommander.Server.UI` if needed. CI packs from a pinned
+commit. Once a prerelease with the contracts is on nuget.org, set `LANCommanderPackageVersion` to
+it, then remove the pack script and its CI steps.
 
 ## Server plugin
 
@@ -173,7 +168,7 @@ enforces the plugin's compressed-size, expanded-size, entry-count, expansion-rat
 symbolic-link safety checks, and normalizes ZIP or single-EXE releases without executing them. The
 administrator explicitly chooses the primary executable when several candidates exist. The plugin
 then builds an LCX carrying the edited metadata and immutable provenance, and streams it through
-LANCommander's canonical `ImportRunner` pipeline. Temporary downloads and LCX files are removed on
+LANCommander's canonical import pipeline (`IPackageImporter`). Temporary downloads and LCX files are removed on
 discard, successful import, component disposal, and failed preparation.
 
 The generated LCX also includes a deterministic game `Package` script. LANCommander's existing
@@ -197,7 +192,7 @@ and use **Manage ROM** to attach, change, or remove its ROM without re-importing
 - **Upload:** the file is streamed from the browser (up to 512 MiB) into temporary storage.
   N64 dumps in v64 or n64 byte order are converted to z64 (big-endian); other formats are kept as
   is. The SHA-1 and SHA-256 are shown so you can compare them with the hashes the project expects.
-  The plugin packages the ROM as a redistributable LCX and imports it through `ImportRunner`. Its
+  The plugin packages the ROM as a redistributable LCX and imports it through `IPackageImporter`. Its
   ID is derived from the SHA-256, so uploading the same dump again reuses the existing
   redistributable. Its name, `ROM: <label> [<sha256 prefix>]`, must be unique.
 - **Stored:** pick an existing ROM redistributable that this plugin created (recognised by its
@@ -250,32 +245,28 @@ with public-repository access is sufficient. Unauthenticated public-repository l
 supported at GitHub's lower rate limit. When the API rejects a token or exhausts a rate limit,
 the plugin reports an actionable error and includes the reset time when GitHub provides one.
 
-The current import boundary uses LANCommander's host-provided `ImportRunner.RunStreamAsync`, which
-reuses the same import context, queue preparation, archive storage, and persistence path as the
-server API. The plugin never writes game/archive rows directly. The imported package carries the
+The import boundary is the host-provided `IPackageImporter.ImportStreamAsync`, which reuses the
+same import context, queue preparation, archive storage, and persistence path as the server API.
+The plugin uses only `LANCommander.Server.Plugins` contracts (`IPackageImporter`,
+`IMetadataLookup`, `IGameProvider`, `IGameVersionProvider`, and `IRedistributableProvider`) and
+never writes game/archive rows directly. The imported package carries the
 catalog identity, exact release identity, and serialized update policy so later catalog refreshes
 can classify existing games without title matching.
 
-The host contract, UI, service, and import assemblies (`LANCommander.SDK`,
-`LANCommander.Server.Plugins`, `LANCommander.Server.UI`, `LANCommander.Server.Services`,
-`LANCommander.Server.Data`, and `LANCommander.Server.ImportExport`)
-are referenced with `Private="false"`. Plugin output
+The host packages (`LANCommander.SDK`, `LANCommander.Server.Plugins`, and
+`LANCommander.Server.UI`) are referenced with `ExcludeAssets="runtime"` and `PrivateAssets="all"`,
+so they are compile-time only. Plugin output
 contains the plugin plus its private `LANCommander.RecompCatalog.Core`,
 `LANCommander.RecompCatalog.Infrastructure`, and `LANCommander.RecompCatalog.Providers`
 assemblies, but no host or Radzen binaries. This is required: the server
 must provide the already-loaded copies so contract types and Razor controls keep a single identity
 across the plugin's isolated load context.
 
-`LANCommander.Server.UI` is not published as a NuGet package yet. The explicit assembly reference
-is a temporary development bridge; set `LANCommanderRoot` (or `LANCOMMANDER_ROOT`) to a built
-LANCommander checkout. The plugin does not copy Server.UI, Radzen, or any other server UI
-dependency into its deployment folder.
-
 For development, deploy the build output into a folder named after the assembly, under the
 server's `Data/Plugins` directory (use the [release ZIP](#installation) for other servers):
 
 ```powershell
-$dest = "$env:LANCOMMANDER_ROOT\LANCommander.Server\Data\Plugins\LANCommander.RecompCatalog.Plugin"
+$dest = "D:\src\LANCommander\LANCommander.Server\Data\Plugins\LANCommander.RecompCatalog.Plugin"
 New-Item -ItemType Directory -Path $dest -Force
 Copy-Item LANCommander.RecompCatalog.Plugin\bin\Debug\net10.0\* $dest -Force
 ```
@@ -293,14 +284,10 @@ nothing is administrator-only by default.
 
 ### Host load-context prerequisite
 
-The current LANCommander plugin load context must treat `LANCommander.Server.UI` and
-`LANCommander.Server.Services` as shared host assemblies, alongside
-`LANCommander.Server.Plugins`, so the plugin resolves the server's already-loaded UI and service
-assemblies instead of loading second copies. `LANCommander.Server.Data` is also compile-time only
-and must resolve from the host; it must not be copied into the plugin directory. The pinned host
-already shares Server.Services and resolves its Data dependency from the default load context.
-This repository intentionally does not modify LANCommander; update the host-side shared-assembly
-list before deploying to a build that does not share Server.UI or Server.Services.
+LANCommander's plugin load context treats `LANCommander.SDK`, `LANCommander.Server.Plugins`, and
+`LANCommander.Server.UI` as shared host assemblies, so the plugin resolves the server's
+already-loaded copies instead of loading second ones. The server must also include the contracts
+from LANCommander/LANCommander#475; older 2.2.0 prereleases fail to activate the plugin.
 
 ## Known gaps
 

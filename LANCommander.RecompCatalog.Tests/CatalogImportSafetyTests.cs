@@ -1,8 +1,6 @@
 using LANCommander.RecompCatalog.Core;
 using LANCommander.RecompCatalog.Plugin;
 using Microsoft.Extensions.DependencyInjection;
-using DataGame = LANCommander.Server.Data.Models.Game;
-using DataCustomField = LANCommander.Server.Data.Models.GameCustomField;
 
 namespace LANCommander.RecompCatalog.Tests;
 
@@ -183,9 +181,9 @@ public class CatalogImportSafetyTests
             State = CatalogEntryStateClassifier.Classify(preparation.Provenance),
         };
         using var http = new RecompCatalogHttpClient();
-        using var services = new ServiceCollection().BuildServiceProvider();
         using var gate = new CatalogImportGate();
-        var workflow = new CatalogImportWorkflow(http, services, host, gate);
+        var importer = new ThrowingPackageImporter();
+        var workflow = new CatalogImportWorkflow(http, importer, host, gate);
         var nonexistent = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         var prepared = new PreparedImportArtifact(
             new NormalizedArtifact(Path.Combine(nonexistent, "missing.zip"), "hash", 1, 1, ["game.exe"]),
@@ -194,6 +192,7 @@ public class CatalogImportSafetyTests
         var result = await workflow.ImportAsync(preparation, prepared, "game.exe");
 
         Assert.True(result.AlreadyImported);
+        Assert.Equal(0, importer.Calls);
         Assert.False(Directory.Exists(nonexistent));
     }
 
@@ -201,16 +200,14 @@ public class CatalogImportSafetyTests
     public void HostMatchesCanonicalIdentityAfterCatalogRenameAndBlocksDuplicateMatches()
     {
         var preparation = Preparation();
-        var game = new DataGame
-        {
-            Id = Guid.NewGuid(),
-            Title = "Locally edited title",
-            CustomFields =
-            [
-                new DataCustomField { Name = "RecompCatalog.Identity", Value = preparation.Entry.Identity.Value },
-                new DataCustomField { Name = "RecompCatalog.Release", Value = preparation.Provenance.Release!.Value },
-            ],
-        };
+        var game = new HostGameSnapshot(
+            Guid.NewGuid(),
+            "Locally edited title",
+            new Dictionary<string, string>
+            {
+                ["RecompCatalog.Identity"] = preparation.Entry.Identity.Value,
+                ["RecompCatalog.Release"] = preparation.Provenance.Release!.Value,
+            });
         var renamed = preparation.Entry with
         {
             CatalogEntry = preparation.Entry.CatalogEntry with { Name = "Renamed catalog title" },
@@ -221,12 +218,7 @@ public class CatalogImportSafetyTests
         Assert.Equal(CatalogImportDisposition.AlreadyImported,
             CatalogImportSafety.Assess(states[renamed.Id], preparation.Provenance.Release!).Disposition);
 
-        var duplicate = new DataGame
-        {
-            Id = Guid.NewGuid(),
-            Title = "Duplicate",
-            CustomFields = game.CustomFields,
-        };
+        var duplicate = game with { Id = Guid.NewGuid(), Title = "Duplicate" };
         var ambiguous = CatalogHostIntegration.MapImportedStates([renamed], [game, duplicate]);
         Assert.Equal(CatalogEntryState.StateCheckFailed, ambiguous[renamed.Id].Status);
         Assert.False(CatalogImportSafety.Assess(ambiguous[renamed.Id], preparation.Provenance.Release!).CanImport);
@@ -236,7 +228,10 @@ public class CatalogImportSafetyTests
     public void HostFindsLegacyGameWithoutExactReleaseAndNeverTreatsItAsNew()
     {
         var preparation = Preparation();
-        var game = new DataGame { Id = preparation.Provenance.GameId, Title = "Legacy edited title" };
+        var game = new HostGameSnapshot(
+            preparation.Provenance.GameId,
+            "Legacy edited title",
+            new Dictionary<string, string>());
         var states = CatalogHostIntegration.MapImportedStates([preparation.Entry], [game]);
         var state = states[preparation.Entry.Id];
 
@@ -258,7 +253,7 @@ public class CatalogImportSafetyTests
     private static Task<CatalogImportResult> UnexpectedImport(CancellationToken token) =>
         throw new Xunit.Sdk.XunitException("The importer must not be invoked.");
 
-    private static ImportPreparation Preparation()
+    internal static ImportPreparation Preparation()
     {
         var catalogEntry = new CatalogEntry { Name = "Game", Repository = "org/game", FolderName = "game" };
         var identity = CatalogIdentity.Create(new Uri("https://catalog.test/index.json"),

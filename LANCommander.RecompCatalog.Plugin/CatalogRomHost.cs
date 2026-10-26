@@ -1,11 +1,8 @@
 using LANCommander.RecompCatalog.Core;
 using LANCommander.RecompCatalog.Infrastructure;
 using LANCommander.SDK.Enums;
-using LANCommander.Server.ImportExport.Services;
-using LANCommander.Server.Services;
-using Microsoft.Extensions.DependencyInjection;
+using LANCommander.Server.Plugins;
 using System.Text.Json;
-using DataRedistributable = LANCommander.Server.Data.Models.Redistributable;
 
 namespace LANCommander.RecompCatalog.Plugin;
 
@@ -32,19 +29,16 @@ public interface ICatalogRomHost
 }
 
 public sealed class CatalogRomHost(
-    RedistributableService redistributableService,
-    GameVersionService gameVersionService,
-    IServiceProvider serviceProvider) : ICatalogRomHost
+    IRedistributableProvider redistributables,
+    IGameVersionProvider versions,
+    IPackageImporter importer) : ICatalogRomHost
 {
     public async Task<IReadOnlyList<RomRedistributableInfo>> ListRomsAsync(
         CancellationToken cancellationToken = default)
     {
-        var redistributables = await redistributableService
-            .AsNoTracking()
-            .GetAsync()
-            .WaitAsync(cancellationToken);
+        var all = await redistributables.GetAsync(cancellationToken);
 
-        return redistributables
+        return all
             .Select(Map)
             .OfType<RomRedistributableInfo>()
             .OrderBy(rom => rom.Name, StringComparer.OrdinalIgnoreCase)
@@ -60,10 +54,7 @@ public sealed class CatalogRomHost(
         ArgumentNullException.ThrowIfNull(rom);
 
         var id = RomRedistributableBuilder.CreateId(rom.Sha256);
-        var existing = await redistributableService
-            .AsNoTracking()
-            .FirstOrDefaultAsync(redistributable => redistributable.Id == id)
-            .WaitAsync(cancellationToken);
+        var existing = await redistributables.GetAsync(id, cancellationToken);
         if (existing is not null)
         {
             progress?.Report("This ROM is already a redistributable; reusing it.");
@@ -73,9 +64,7 @@ public sealed class CatalogRomHost(
         }
 
         var name = RomRedistributableBuilder.CreateName(displayName, rom.Sha256);
-        if (await redistributableService
-            .ExistsAsync(redistributable => redistributable.Name == name)
-            .WaitAsync(cancellationToken))
+        if (await redistributables.FindAsync(name, cancellationToken) is not null)
         {
             // The importer matches by name as well as ID, so a clash would overwrite another redistributable.
             throw new InvalidOperationException(
@@ -92,8 +81,7 @@ public sealed class CatalogRomHost(
 
             progress?.Report("Importing ROM redistributable into LANCommander...");
             await using var packageStream = File.OpenRead(packagePath);
-            var importRunner = serviceProvider.GetRequiredService<ImportRunner>();
-            await importRunner.RunStreamAsync(
+            await importer.ImportStreamAsync(
                 packageStream,
                 manifestType: ManifestType.Redistributable,
                 cancellationToken: cancellationToken);
@@ -111,12 +99,11 @@ public sealed class CatalogRomHost(
         Guid gameId,
         CancellationToken cancellationToken = default)
     {
-        var versionId = await gameVersionService.GetLatestIdAsync(gameId).WaitAsync(cancellationToken);
-        if (versionId is null)
+        var version = await versions.GetLatestAsync(gameId, cancellationToken);
+        if (version is null)
             return null;
 
-        var rows = await gameVersionService.GetRedistributablesAsync(versionId.Value)
-            .WaitAsync(cancellationToken);
+        var rows = await versions.GetRedistributablesAsync(version.Id, cancellationToken);
         foreach (var row in rows)
         {
             var rom = Map(row.Redistributable);
@@ -142,37 +129,37 @@ public sealed class CatalogRomHost(
         if (error is not null)
             throw new ArgumentException(error, nameof(placement));
 
-        var rom = await redistributableService
-            .AsNoTracking()
-            .FirstOrDefaultAsync(redistributable => redistributable.Id == romId)
-            .WaitAsync(cancellationToken);
+        var rom = await redistributables.GetAsync(romId, cancellationToken);
         if (Map(rom) is null)
             throw new InvalidOperationException("The selected ROM redistributable no longer exists.");
 
-        var versionId = await gameVersionService.GetOrCreateLatestIdAsync(gameId).WaitAsync(cancellationToken);
-        var rows = await gameVersionService.GetRedistributablesAsync(versionId).WaitAsync(cancellationToken);
-        await gameVersionService.SetRedistributablesAsync(
-            versionId,
-            ReplaceRom(rows.Select(row => (row.RedistributableId, IsPluginRom(row.Redistributable))), romId));
-        await gameVersionService.SetRedistributableOptionsAsync(
-            versionId,
+        var version = await versions.GetOrCreateLatestAsync(gameId, cancellationToken);
+        var rows = await versions.GetRedistributablesAsync(version.Id, cancellationToken);
+        await versions.SetRedistributablesAsync(
+            version.Id,
+            ReplaceRom(rows.Select(row => (row.Redistributable.Id, IsPluginRom(row.Redistributable))), romId),
+            cancellationToken);
+        await versions.SetRedistributableOptionsAsync(
+            version.Id,
             romId,
-            JsonSerializer.Serialize(placement.ToOptions()));
+            JsonSerializer.Serialize(placement.ToOptions()),
+            cancellationToken);
     }
 
     public async Task UnlinkAsync(Guid gameId, CancellationToken cancellationToken = default)
     {
-        var versionId = await gameVersionService.GetLatestIdAsync(gameId).WaitAsync(cancellationToken);
-        if (versionId is null)
+        var version = await versions.GetLatestAsync(gameId, cancellationToken);
+        if (version is null)
             return;
 
-        var rows = await gameVersionService.GetRedistributablesAsync(versionId.Value).WaitAsync(cancellationToken);
+        var rows = await versions.GetRedistributablesAsync(version.Id, cancellationToken);
         if (!rows.Any(row => IsPluginRom(row.Redistributable)))
             return;
 
-        await gameVersionService.SetRedistributablesAsync(
-            versionId.Value,
-            ReplaceRom(rows.Select(row => (row.RedistributableId, IsPluginRom(row.Redistributable))), null));
+        await versions.SetRedistributablesAsync(
+            version.Id,
+            ReplaceRom(rows.Select(row => (row.Redistributable.Id, IsPluginRom(row.Redistributable))), null),
+            cancellationToken);
     }
 
     /// <summary>
@@ -208,9 +195,9 @@ public sealed class CatalogRomHost(
         }
     }
 
-    private static bool IsPluginRom(DataRedistributable? redistributable) => Map(redistributable) is not null;
+    private static bool IsPluginRom(RedistributableInfo? redistributable) => Map(redistributable) is not null;
 
-    private static RomRedistributableInfo? Map(DataRedistributable? redistributable)
+    private static RomRedistributableInfo? Map(RedistributableInfo? redistributable)
     {
         var sha256 = RomRedistributableBuilder.ReadSha256(redistributable?.Notes);
         return redistributable is null || sha256 is null

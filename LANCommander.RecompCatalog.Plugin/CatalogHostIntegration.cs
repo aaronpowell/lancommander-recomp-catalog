@@ -1,8 +1,6 @@
 using LANCommander.RecompCatalog.Core;
-using LANCommander.Server.Services;
-using LANCommander.Server.Services.Providers.Metadata;
+using LANCommander.Server.Plugins;
 using System.Text.Json;
-using DataGame = LANCommander.Server.Data.Models.Game;
 using ManifestGame = LANCommander.SDK.Models.Manifest.Game;
 
 namespace LANCommander.RecompCatalog.Plugin;
@@ -26,9 +24,20 @@ public interface ICatalogHostIntegration
         CancellationToken cancellationToken = default);
 }
 
+/// <summary>A server game as seen through the plugin contracts, reduced to what import state needs.</summary>
+internal sealed record HostGameSnapshot(
+    Guid Id,
+    string Title,
+    IReadOnlyDictionary<string, string> CustomFields,
+    string ImportedTag = "")
+{
+    internal string? Field(string name) => CustomFields.TryGetValue(name, out var value) ? value : null;
+}
+
 public sealed class CatalogHostIntegration(
-    GameService gameService,
-    MetadataService metadataService) : ICatalogHostIntegration
+    IGameProvider games,
+    IGameVersionProvider versions,
+    IMetadataLookup metadata) : ICatalogHostIntegration
 {
     internal const string CatalogIdentityField = "RecompCatalog.Identity";
     internal const string ReleaseIdentityField = "RecompCatalog.Release";
@@ -40,28 +49,55 @@ public sealed class CatalogHostIntegration(
     {
         ArgumentNullException.ThrowIfNull(entries);
 
-        var games = await gameService
-            .AsNoTracking()
-            .AsSplitQuery()
-            .Include(game => game.CustomFields!, game => game.Versions!)
-            .GetAsync()
-            .WaitAsync(cancellationToken);
-        return MapImportedStates(entries, games, cancellationToken);
+        var allGames = await games.GetAsync(cancellationToken);
+        var fieldsByGame = (await games.GetCustomFieldsAsync(cancellationToken))
+            .GroupBy(field => field.GameId)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyDictionary<string, string>)group
+                    .GroupBy(field => field.Name, StringComparer.Ordinal)
+                    .ToDictionary(named => named.Key, named => named.First().Value, StringComparer.Ordinal));
+        var legacyIds = entries.Select(LegacyGameId).ToHashSet();
+
+        var snapshots = new List<HostGameSnapshot>(allGames.Count);
+        foreach (var game in allGames)
+        {
+            var fields = fieldsByGame.GetValueOrDefault(game.Id)
+                ?? new Dictionary<string, string>(StringComparer.Ordinal);
+            var snapshot = new HostGameSnapshot(game.Id, game.Title, fields);
+
+            // Versions are only needed for games that can match a catalog entry.
+            if (legacyIds.Contains(game.Id) || !string.IsNullOrWhiteSpace(snapshot.Field(CatalogIdentityField)))
+            {
+                var gameVersions = await versions.GetAsync(game.Id, cancellationToken);
+                snapshot = snapshot with { ImportedTag = LatestTag(gameVersions) };
+            }
+
+            snapshots.Add(snapshot);
+        }
+
+        return MapImportedStates(entries, snapshots, cancellationToken);
     }
+
+    internal static string LatestTag(IEnumerable<GameVersionInfo> gameVersions) =>
+        gameVersions
+            .OrderByDescending(version => version.SortOrder)
+            .ThenByDescending(version => version.CreatedOn)
+            .Select(version => version.Version)
+            .FirstOrDefault(version => !string.IsNullOrWhiteSpace(version))
+        ?? "";
+
+    private static Guid LegacyGameId(CatalogBrowserEntry entry) =>
+        StableId.Create($"game:{entry.CatalogEntry.Repository.ToLowerInvariant()}:{entry.CatalogEntry.Name}");
 
     internal static IReadOnlyDictionary<string, CatalogEntryStateView> MapImportedStates(
         IReadOnlyList<CatalogBrowserEntry> entries,
-        IEnumerable<DataGame> games,
+        IEnumerable<HostGameSnapshot> games,
         CancellationToken cancellationToken = default)
     {
         var gameList = games.ToList();
         var byCatalogIdentity = gameList
-            .Select(game => new
-            {
-                Game = game,
-                Identity = game.CustomFields?
-                    .FirstOrDefault(field => field.Name == CatalogIdentityField)?.Value,
-            })
+            .Select(game => new { Game = game, Identity = game.Field(CatalogIdentityField) })
             .Where(item => !string.IsNullOrWhiteSpace(item.Identity))
             .GroupBy(item => item.Identity!, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.Select(item => item.Game).ToList(), StringComparer.Ordinal);
@@ -72,8 +108,7 @@ public sealed class CatalogHostIntegration(
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var legacyGameId = StableId.Create(
-                $"game:{entry.CatalogEntry.Repository.ToLowerInvariant()}:{entry.CatalogEntry.Name}");
+            var legacyGameId = LegacyGameId(entry);
             if (byCatalogIdentity.TryGetValue(entry.Identity.Value, out var matches) && matches.Count != 1)
             {
                 states[entry.Id] = CatalogEntryStateClassifier.Classify(
@@ -89,17 +124,10 @@ public sealed class CatalogHostIntegration(
                 continue;
             }
 
-            var importedTag = game.Versions?
-                .OrderByDescending(version => version.SortOrder)
-                .ThenByDescending(version => version.CreatedOn)
-                .Select(version => version.Version)
-                .FirstOrDefault(version => !string.IsNullOrWhiteSpace(version))
-                ?? "";
-            var releaseValue = game.CustomFields?
-                .FirstOrDefault(field => field.Name == ReleaseIdentityField)?.Value;
+            var importedTag = game.ImportedTag;
+            var releaseValue = game.Field(ReleaseIdentityField);
             _ = ReleaseIdentity.TryParse(releaseValue ?? "", out var release);
-            var policyValue = game.CustomFields?
-                .FirstOrDefault(field => field.Name == UpdatePolicyField)?.Value;
+            var policyValue = game.Field(UpdatePolicyField);
             var policy = DeserializePolicy(policyValue)
                 ?? (release is null
                     ? null
@@ -125,7 +153,7 @@ public sealed class CatalogHostIntegration(
     }
 
     public IReadOnlyList<string> GetMetadataProviders() =>
-        metadataService.GetProviderNames()
+        metadata.GetProviderNames()
             .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
@@ -134,14 +162,11 @@ public sealed class CatalogHostIntegration(
         string query,
         CancellationToken cancellationToken = default)
     {
-        var provider = RequireProvider(providerName);
-        var results = await provider.SearchGamesAsync(query.Trim(), 10, 0)
-            .WaitAsync(cancellationToken);
+        var page = await metadata.SearchGamesAsync(providerName, query.Trim(), 10, 0, cancellationToken);
 
-        return results?.Results
+        return page.Results
             .Select(result => Map(providerName, result.Id, result.Data))
-            .ToList()
-            ?? [];
+            .ToList();
     }
 
     public async Task<MetadataLookupResult?> GetMetadataAsync(
@@ -149,15 +174,9 @@ public sealed class CatalogHostIntegration(
         string providerGameId,
         CancellationToken cancellationToken = default)
     {
-        var provider = RequireProvider(providerName);
-        var game = await provider.GetGameAsync(providerGameId).WaitAsync(cancellationToken);
+        var game = await metadata.GetGameAsync(providerName, providerGameId, cancellationToken);
         return game is null ? null : Map(providerName, providerGameId, game);
     }
-
-    private IMetadataProvider RequireProvider(string providerName) =>
-        metadataService.GetProvider(providerName)
-        ?? throw new InvalidOperationException(
-            $"LANCommander metadata provider '{providerName}' is not available.");
 
     private static PackageUpdatePolicy? DeserializePolicy(string? value)
     {

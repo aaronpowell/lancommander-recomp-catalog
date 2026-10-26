@@ -4,7 +4,6 @@ using LANCommander.RecompCatalog.Infrastructure;
 using LANCommander.RecompCatalog.Plugin;
 using LANCommander.SDK.Plugins;
 using LANCommander.Server.Plugins;
-using LANCommander.Server.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -58,10 +57,7 @@ public sealed class RecompCatalogPlugin : IPlugin
         services.AddSingleton<CatalogImportGate>();
         services.AddScoped<CatalogImportWorkflow>();
         services.AddScoped<ICatalogRomHost, CatalogRomHost>();
-        services.AddScoped<ICatalogHostIntegration>(serviceProvider =>
-            new CatalogHostIntegration(
-                serviceProvider.GetRequiredService<GameService>(),
-                serviceProvider.GetRequiredService<MetadataService>()));
+        services.AddScoped<ICatalogHostIntegration, CatalogHostIntegration>();
     }
 
     public Task InitializeAsync(PluginContext context, CancellationToken cancellationToken)

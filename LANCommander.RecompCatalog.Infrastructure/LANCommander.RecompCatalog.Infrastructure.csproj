@@ -13,16 +13,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Reference Include="LANCommander.SDK" HintPath="$(LANCommanderSdkArtifacts)\LANCommander.SDK.dll" Private="true" />
+    <PackageReference Include="LANCommander.SDK" Version="$(LANCommanderPackageVersion)" ExcludeAssets="runtime" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
     <InternalsVisibleTo Include="LANCommander.RecompCatalog.Tests" />
   </ItemGroup>
-
-  <Target Name="RequireLANCommanderAssemblies" BeforeTargets="ResolveReferences">
-    <Error Condition="!Exists('$(LANCommanderSdkArtifacts)\LANCommander.SDK.dll')"
-           Text="LANCommander.SDK.dll was not found. Build the pinned LANCommander source and set LANCommanderRoot. See README.md." />
-  </Target>
 
 </Project>

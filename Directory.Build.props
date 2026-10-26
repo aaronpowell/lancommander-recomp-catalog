@@ -1,12 +1,17 @@
 <Project>
   <PropertyGroup>
-    <LANCommanderRoot Condition="'$(LANCommanderRoot)' == '' and '$(LANCOMMANDER_ROOT)' != ''">$(LANCOMMANDER_ROOT)</LANCommanderRoot>
-    <LANCommanderRoot Condition="'$(LANCommanderRoot)' == ''">D:\copilot-app\copilot-worktrees\LANCommander\aaronpowell-potential-funicular</LANCommanderRoot>
-    <LANCommanderSdkArtifacts Condition="'$(LANCommanderSdkArtifacts)' == ''">$(LANCommanderRoot)\LANCommander.SDK\bin\Debug\net10.0</LANCommanderSdkArtifacts>
-    <LANCommanderServerPluginsArtifacts Condition="'$(LANCommanderServerPluginsArtifacts)' == ''">$(LANCommanderRoot)\LANCommander.Server.Plugins\bin\Debug\net10.0</LANCommanderServerPluginsArtifacts>
-    <LANCommanderServerUIArtifacts Condition="'$(LANCommanderServerUIArtifacts)' == ''">$(LANCommanderRoot)\LANCommander.Server.UI\bin\Debug\net10.0</LANCommanderServerUIArtifacts>
-    <LANCommanderServerServicesArtifacts Condition="'$(LANCommanderServerServicesArtifacts)' == ''">$(LANCommanderRoot)\LANCommander.Server.Services\bin\Debug\net10.0</LANCommanderServerServicesArtifacts>
-    <LANCommanderServerDataArtifacts Condition="'$(LANCommanderServerDataArtifacts)' == ''">$(LANCommanderRoot)\LANCommander.Server.Data\bin\Debug\net10.0</LANCommanderServerDataArtifacts>
-    <LANCommanderServerImportExportArtifacts Condition="'$(LANCommanderServerImportExportArtifacts)' == ''">$(LANCommanderRoot)\LANCommander.Server.ImportExport\bin\Debug\net10.0</LANCommanderServerImportExportArtifacts>
+    <!--
+      LANCommander host packages (LANCommander.SDK, LANCommander.Server.Plugins, LANCommander.Server.UI).
+      Until a prerelease containing the plugin data contracts is on nuget.org, build/Pack-LANCommanderPackages.ps1
+      packs them into artifacts/lancommander-feed with this version.
+    -->
+    <LANCommanderPackageVersion Condition="'$(LANCommanderPackageVersion)' == ''">2.2.0-alpha.2.contracts.1</LANCommanderPackageVersion>
+    <LANCommanderLocalFeed>$(MSBuildThisFileDirectory)artifacts\lancommander-feed</LANCommanderLocalFeed>
+    <RestoreAdditionalProjectSources Condition="Exists('$(LANCommanderLocalFeed)')">$(RestoreAdditionalProjectSources);$(LANCommanderLocalFeed)</RestoreAdditionalProjectSources>
+    <!--
+      NuGet audit flags transitive dependencies of LANCommander.SDK. The server provides those at runtime and the
+      plugin does not ship them, so keep the advisories visible as warnings instead of failing the build.
+    -->
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);NU1901;NU1902;NU1903;NU1904</WarningsNotAsErrors>
   </PropertyGroup>
 </Project>

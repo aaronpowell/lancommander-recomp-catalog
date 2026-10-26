@@ -12,17 +12,12 @@
 .PARAMETER Version
     Package version. Defaults to the <Version> in the plugin project. A leading "v" is removed.
 
-.PARAMETER LANCommanderRoot
-    Built LANCommander checkout providing host reference assemblies. Defaults to the
-    LANCOMMANDER_ROOT environment variable, then Directory.Build.props.
-
 .PARAMETER OutputDirectory
     Where the ZIP and its .sha256 file are written. Defaults to ./artifacts.
 #>
 [CmdletBinding()]
 param(
     [string] $Version,
-    [string] $LANCommanderRoot = $env:LANCOMMANDER_ROOT,
     [string] $OutputDirectory
 )
 
@@ -57,10 +52,6 @@ $publishArguments = @(
     '--nologo',
     "-p:Version=$Version"
 )
-if ($LANCommanderRoot) {
-    $publishArguments += "-p:LANCommanderRoot=$LANCommanderRoot"
-}
-
 dotnet @publishArguments
 if ($LASTEXITCODE -ne 0) {
     throw "dotnet publish failed with exit code $LASTEXITCODE."

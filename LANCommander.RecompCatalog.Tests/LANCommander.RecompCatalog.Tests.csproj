@@ -13,8 +13,6 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
-    <!-- LANCommander.SDK is referenced as a file; the server provides YamlDotNet at runtime. -->
-    <PackageReference Include="YamlDotNet" Version="16.3.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -29,11 +27,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Reference Include="LANCommander.SDK" HintPath="$(LANCommanderSdkArtifacts)\LANCommander.SDK.dll" Private="true" />
-    <Reference Include="LANCommander.Server.Plugins" HintPath="$(LANCommanderServerPluginsArtifacts)\LANCommander.Server.Plugins.dll" Private="true" />
-    <Reference Include="LANCommander.Server.UI" HintPath="$(LANCommanderServerUIArtifacts)\LANCommander.Server.UI.dll" Private="true" />
-    <Reference Include="LANCommander.Server.Services" HintPath="$(LANCommanderServerServicesArtifacts)\LANCommander.Server.Services.dll" Private="true" />
-    <Reference Include="LANCommander.Server.Data" HintPath="$(LANCommanderServerDataArtifacts)\LANCommander.Server.Data.dll" Private="true" />
+    <PackageReference Include="LANCommander.SDK" Version="$(LANCommanderPackageVersion)" />
+    <PackageReference Include="LANCommander.Server.Plugins" Version="$(LANCommanderPackageVersion)" />
+    <PackageReference Include="LANCommander.Server.UI" Version="$(LANCommanderPackageVersion)" />
   </ItemGroup>
 
   <ItemGroup>

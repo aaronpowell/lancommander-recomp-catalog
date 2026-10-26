@@ -1,8 +1,7 @@
 using LANCommander.RecompCatalog.Core;
 using LANCommander.RecompCatalog.Infrastructure;
 using LANCommander.SDK.Enums;
-using LANCommander.Server.ImportExport.Services;
-using Microsoft.Extensions.DependencyInjection;
+using LANCommander.Server.Plugins;
 
 namespace LANCommander.RecompCatalog.Plugin;
 
@@ -18,7 +17,7 @@ internal sealed record CatalogImportResult(
 
 internal sealed class CatalogImportWorkflow(
     RecompCatalogHttpClient httpClient,
-    IServiceProvider serviceProvider,
+    IPackageImporter importer,
     ICatalogHostIntegration host,
     CatalogImportGate gate)
 {
@@ -109,8 +108,7 @@ internal sealed class CatalogImportWorkflow(
 
             progress?.Report("Importing package into LANCommander...");
             await using var packageStream = File.OpenRead(package.OutputPath);
-            var importRunner = serviceProvider.GetRequiredService<ImportRunner>();
-            var result = await importRunner.RunStreamAsync(
+            var result = await importer.ImportStreamAsync(
                 packageStream,
                 manifestType: ManifestType.Game,
                 copyProgress: new Progress<long>(
