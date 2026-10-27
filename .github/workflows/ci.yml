@@ -17,20 +17,6 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      # Interim: the plugin data contracts (LANCommander/LANCommander#475) are not in a published
-      # prerelease yet, so pack LANCommander.SDK, Server.Plugins and Server.UI from the pinned commit
-      # into the local feed. Remove these two steps once the contracts ship in a nuget.org prerelease.
-      - name: Check out pinned LANCommander source
-        uses: actions/checkout@v4
-        with:
-          repository: aaronpowell/LANCommander
-          ref: bec35feb7a70da36204d274cb82c78ea226be54d
-          path: lancommander
-
-      - name: Pack LANCommander packages into the local feed
-        shell: pwsh
-        run: .\build\Pack-LANCommanderPackages.ps1 -LANCommanderRoot "$env:GITHUB_WORKSPACE\lancommander"
-
       - name: Build and test plugin
         shell: pwsh
         run: |

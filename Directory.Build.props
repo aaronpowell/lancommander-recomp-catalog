@@ -1,13 +1,7 @@
 <Project>
   <PropertyGroup>
-    <!--
-      LANCommander host packages (LANCommander.SDK, LANCommander.Server.Plugins, LANCommander.Server.UI).
-      Until a prerelease containing the plugin data contracts is on nuget.org, build/Pack-LANCommanderPackages.ps1
-      packs them into artifacts/lancommander-feed with this version.
-    -->
-    <LANCommanderPackageVersion Condition="'$(LANCommanderPackageVersion)' == ''">2.2.0-alpha.2.contracts.1</LANCommanderPackageVersion>
-    <LANCommanderLocalFeed>$(MSBuildThisFileDirectory)artifacts\lancommander-feed</LANCommanderLocalFeed>
-    <RestoreAdditionalProjectSources Condition="Exists('$(LANCommanderLocalFeed)')">$(RestoreAdditionalProjectSources);$(LANCommanderLocalFeed)</RestoreAdditionalProjectSources>
+    <!-- LANCommander host packages (LANCommander.SDK, LANCommander.Server.Plugins, LANCommander.Server.UI). -->
+    <LANCommanderPackageVersion Condition="'$(LANCommanderPackageVersion)' == ''">2.2.0-alpha.3</LANCommanderPackageVersion>
     <!--
       NuGet audit flags transitive dependencies of LANCommander.SDK. The server provides those at runtime and the
       plugin does not ship them, so keep the advisories visible as warnings instead of failing the build.

@@ -75,21 +75,13 @@ The plugin builds against the LANCommander NuGet packages `LANCommander.SDK`,
 `LANCommander.Server.Plugins`, and `LANCommander.Server.UI`. Their version is
 `LANCommanderPackageVersion` in `Directory.Build.props`.
 
-The plugin needs host contracts (`IMetadataLookup`, version redistributables, and bulk custom
-field reads) from [LANCommander/LANCommander#475](https://github.com/LANCommander/LANCommander/pull/475),
-which is not in a published prerelease yet. Until it is, pack the three packages from a
-LANCommander checkout that contains that change into `artifacts\lancommander-feed`.
-`Directory.Build.props` adds that folder as a restore source when it exists:
+The plugin needs the host contracts (`IMetadataLookup`, version redistributables, and bulk custom
+field reads) added in `2.2.0-alpha.3`, so use that version or later:
 
 ```powershell
-.\build\Pack-LANCommanderPackages.ps1 -LANCommanderRoot D:\src\LANCommander
 dotnet build LANCommander.RecompCatalog.slnx
 dotnet test LANCommander.RecompCatalog.Tests\LANCommander.RecompCatalog.Tests.csproj
 ```
-
-The pack script runs `npm ci` for `LANCommander.Server.UI` if needed. CI packs from a pinned
-commit. Once a prerelease with the contracts is on nuget.org, set `LANCommanderPackageVersion` to
-it, then remove the pack script and its CI steps.
 
 ## Server plugin
 
@@ -286,8 +278,8 @@ nothing is administrator-only by default.
 
 LANCommander's plugin load context treats `LANCommander.SDK`, `LANCommander.Server.Plugins`, and
 `LANCommander.Server.UI` as shared host assemblies, so the plugin resolves the server's
-already-loaded copies instead of loading second ones. The server must also include the contracts
-from LANCommander/LANCommander#475; older 2.2.0 prereleases fail to activate the plugin.
+already-loaded copies instead of loading second ones. The server must be LANCommander
+`2.2.0-alpha.3` or later; older 2.2.0 prereleases fail to activate the plugin.
 
 ## Known gaps
 
