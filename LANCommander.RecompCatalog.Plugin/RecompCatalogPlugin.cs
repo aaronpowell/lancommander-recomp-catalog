@@ -11,6 +11,7 @@ using Microsoft.Extensions.Logging;
 [assembly: LANCommanderPlugin(
     typeof(RecompCatalogPlugin),
     Id = RecompCatalogPlugin.PluginId,
+    MinHostVersion = "2.2.0-alpha.3",
     Hosts = PluginHost.Server)]
 
 namespace LANCommander.RecompCatalog.Plugin;

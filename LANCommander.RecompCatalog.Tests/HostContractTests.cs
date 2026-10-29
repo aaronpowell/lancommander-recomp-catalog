@@ -1,7 +1,9 @@
+using System.Reflection;
 using LANCommander.RecompCatalog.Core;
 using LANCommander.RecompCatalog.Infrastructure;
 using LANCommander.RecompCatalog.Plugin;
 using LANCommander.SDK.Enums;
+using LANCommander.SDK.Plugins;
 using LANCommander.Server.Plugins;
 using ManifestGame = LANCommander.SDK.Models.Manifest.Game;
 using ManifestGenre = LANCommander.SDK.Models.Manifest.Genre;
@@ -11,6 +13,16 @@ namespace LANCommander.RecompCatalog.Tests;
 /// <summary>Exercises the plugin's host adapters against the published LANCommander.Server.Plugins contracts.</summary>
 public class HostContractTests
 {
+    [Fact]
+    public void DeclaresMinimumHostVersionForPublishedContracts()
+    {
+        var plugin = typeof(RecompCatalogPlugin).Assembly.GetCustomAttribute<LANCommanderPluginAttribute>();
+
+        Assert.NotNull(plugin);
+        Assert.Equal("2.2.0-alpha.3", plugin.MinHostVersion);
+        Assert.Equal(PluginHost.Server, plugin.Hosts);
+    }
+
     [Fact]
     public async Task LoadsImportStateFromCustomFieldsAndOnlyReadsVersionsForCandidateGames()
     {

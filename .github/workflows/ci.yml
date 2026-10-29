@@ -34,8 +34,8 @@ jobs:
         with:
           name: LANCommander.RecompCatalog.Plugin
           path: |
-            artifacts/*.zip
-            artifacts/*.zip.sha256
+            artifacts/*.nupkg
+            artifacts/*.nupkg.sha256
           if-no-files-found: error
 
   release:

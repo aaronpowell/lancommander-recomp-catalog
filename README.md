@@ -26,32 +26,23 @@ guarantee: administrators must review upstream projects and release artifacts.
 
 ## Installation
 
-Each `v*` tag publishes a GitHub release with `LANCommander.RecompCatalog.Plugin-<version>.zip`
+Each `v*` tag publishes a GitHub release with `LANCommander.RecompCatalog.Plugin.<version>.nupkg`
 and a matching `.sha256` file. The plugin needs a LANCommander server build that carries the
 plugin contracts described under [Build](#build) and the
 [host load-context prerequisite](#host-load-context-prerequisite).
 
-1. Download the ZIP and its `.sha256` file from the
+1. Download the NuGet package and its `.sha256` file from the
    [releases page](https://github.com/aaronpowell/lancommander-recomp-catalog/releases), and
    verify the hash:
 
    ```powershell
-   $zip = 'LANCommander.RecompCatalog.Plugin-0.4.0.zip'
-   $expected = (Get-Content "$zip.sha256").Split(' ')[0]
-   (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant() -eq $expected
+   $package = 'LANCommander.RecompCatalog.Plugin.0.4.1.nupkg'
+   $expected = (Get-Content "$package.sha256").Split(' ')[0]
+   (Get-FileHash $package -Algorithm SHA256).Hash.ToLowerInvariant() -eq $expected
    ```
 
-2. Stop the LANCommander server.
-3. If you're upgrading, delete the existing `Data\Plugins\LANCommander.RecompCatalog.Plugin`
-   folder so stale assemblies are not loaded.
-4. Extract the ZIP into the server's `Data\Plugins` directory. The archive contains a single
-   `LANCommander.RecompCatalog.Plugin` folder, which must keep that name:
-
-   ```powershell
-   Expand-Archive $zip -DestinationPath '<server>\Data\Plugins'
-   ```
-
-5. Start the server and check that it logs
+2. Open **Settings → Plugins** in LANCommander and upload the `.nupkg`.
+3. Restart the server to activate the staged installation or update, and check that it logs
    `Loaded plugin 'Recomp Catalog' (dev.aaronpowell.lancommander.recompcatalog)`.
 
 Imported games, their archives, and their Package scripts are stored by LANCommander, so they are
@@ -59,8 +50,9 @@ kept when you upgrade or remove the plugin.
 
 ### Building the package locally
 
-`build\Package-Plugin.ps1` (PowerShell 7) publishes the plugin in Release, removes symbols, fails
-if any host or Radzen assembly would be shipped, and writes the ZIP and `.sha256` to `artifacts`:
+`build\Package-Plugin.ps1` (PowerShell 7) packs the plugin in Release, verifies that only its four
+private DLLs are under `lib/net10.0/`, checks the plugin package types and absence of NuGet
+dependencies, and writes the `.nupkg` and `.sha256` to `artifacts`:
 
 ```powershell
 .\build\Package-Plugin.ps1
@@ -68,6 +60,33 @@ if any host or Radzen assembly would be shipped, and writes the ZIP and `.sha256
 
 The version defaults to the plugin project's `<Version>`. Pass `-Version 0.5.0` (or `v0.5.0`) to
 override it.
+
+For testing, use a unique prerelease version and upload the resulting package in **Settings →
+Plugins**:
+
+```powershell
+.\build\Package-Plugin.ps1 -Version 0.4.2-local.1
+```
+
+Alternatively, add the absolute `artifacts` directory as a local package source in LANCommander's
+Plugins page. Enable prereleases under **Sources** if the server is not itself a prerelease.
+Increment the version for each test build so package caches and update detection see a new package.
+
+Standard `dotnet pack` also produces the same package layout; the script adds validation and a
+checksum. Host assemblies are compile-time references, not bundled dependencies.
+
+```powershell
+dotnet pack LANCommander.RecompCatalog.Plugin\LANCommander.RecompCatalog.Plugin.csproj -c Release -o artifacts
+```
+
+CI builds, tests, and validates a package on every push and pull request. `v*` tags use the tag version
+and attach the package and checksum to a GitHub release. CI does not push to a NuGet feed. To publish
+to nuget.org or another feed explicitly:
+
+```powershell
+dotnet nuget push artifacts\LANCommander.RecompCatalog.Plugin.0.4.0.nupkg `
+    --source https://api.nuget.org/v3/index.json --api-key $env:NUGET_API_KEY
+```
 
 ## Build
 
@@ -254,14 +273,9 @@ assemblies, but no host or Radzen binaries. This is required: the server
 must provide the already-loaded copies so contract types and Razor controls keep a single identity
 across the plugin's isolated load context.
 
-For development, deploy the build output into a folder named after the assembly, under the
-server's `Data/Plugins` directory (use the [release ZIP](#installation) for other servers):
-
-```powershell
-$dest = "D:\src\LANCommander\LANCommander.Server\Data\Plugins\LANCommander.RecompCatalog.Plugin"
-New-Item -ItemType Directory -Path $dest -Force
-Copy-Item LANCommander.RecompCatalog.Plugin\bin\Debug\net10.0\* $dest -Force
-```
+For development, build a versioned test package and install it through **Settings → Plugins** as
+described under [Building the package locally](#building-the-package-locally). Restart the server
+after installing so the plugin's assemblies are loaded.
 
 Start the server and sign in as an administrator. The sidebar gains a "Recomp Catalog" entry, and
 startup logs `Loaded plugin 'Recomp Catalog' (dev.aaronpowell.lancommander.recompcatalog)`. The

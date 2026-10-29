@@ -1,11 +1,11 @@
 #Requires -Version 7
 <#
 .SYNOPSIS
-    Builds the Recomp Catalog server plugin and packages it as a distributable ZIP.
+    Builds the Recomp Catalog server plugin and packages it as a NuGet package.
 
 .DESCRIPTION
-    The ZIP contains a single top-level LANCommander.RecompCatalog.Plugin folder, which is
-    extracted as-is into the LANCommander server's Data/Plugins directory. Packaging fails if any
+    The package contains the plugin and its private assemblies under lib/net10.0 for installation
+    through LANCommander's Plugins page or a local NuGet feed. Packaging fails if any
     host-provided assembly would be shipped, because duplicate copies break contract and Razor
     type identity inside the plugin's isolated load context.
 
@@ -13,7 +13,7 @@
     Package version. Defaults to the <Version> in the plugin project. A leading "v" is removed.
 
 .PARAMETER OutputDirectory
-    Where the ZIP and its .sha256 file are written. Defaults to ./artifacts.
+    Where the .nupkg and its .sha256 file are written. Defaults to ./artifacts.
 #>
 [CmdletBinding()]
 param(
@@ -39,64 +39,62 @@ if (-not $Version) {
 }
 
 $Version = $Version -replace '^v', ''
-$publishDirectory = Join-Path $repositoryRoot "artifacts\publish\$pluginName"
-
-if (Test-Path $publishDirectory) {
-    Remove-Item -LiteralPath $publishDirectory -Recurse -Force
-}
-
-$publishArguments = @(
-    'publish', $project,
+$packArguments = @(
+    'pack', $project,
     '-c', 'Release',
-    '-o', $publishDirectory,
+    '-o', $OutputDirectory,
     '--nologo',
     "-p:Version=$Version"
 )
-dotnet @publishArguments
+dotnet @packArguments
 if ($LASTEXITCODE -ne 0) {
-    throw "dotnet publish failed with exit code $LASTEXITCODE."
+    throw "dotnet pack failed with exit code $LASTEXITCODE."
 }
 
-# The server does not need debug symbols.
-Get-ChildItem -LiteralPath $publishDirectory -Filter '*.pdb' | Remove-Item -Force
+$packagePath = Join-Path $OutputDirectory "$pluginName.$Version.nupkg"
+$archive = [System.IO.Compression.ZipFile]::OpenRead($packagePath)
+try {
+    $files = @($archive.Entries | Where-Object { $_.FullName.StartsWith('lib/') -and $_.Name } |
+        ForEach-Object { $_.FullName })
+    $expected = @(
+        'LANCommander.RecompCatalog.Core.dll',
+        'LANCommander.RecompCatalog.Infrastructure.dll',
+        'LANCommander.RecompCatalog.Plugin.dll',
+        'LANCommander.RecompCatalog.Providers.dll'
+    ) | ForEach-Object { "lib/net10.0/$_" }
+    $difference = @(Compare-Object $expected $files)
+    if ($difference.Count -gt 0) {
+        throw "Unexpected plugin payload. Expected only: $($expected -join ', '). Found: $($files -join ', ')."
+    }
 
-$forbidden = @(
-    'LANCommander.SDK.dll',
-    'LANCommander.Server.Plugins.dll',
-    'LANCommander.Server.UI.dll',
-    'LANCommander.Server.Services.dll',
-    'LANCommander.Server.Data.dll',
-    'LANCommander.Server.ImportExport.dll',
-    'LANCommander.Packaging.dll',
-    'LANCommander.Packaging.Abstractions.dll'
-)
-$shipped = @($forbidden | Where-Object { Test-Path (Join-Path $publishDirectory $_) })
-$shipped += @(Get-ChildItem -LiteralPath $publishDirectory -Filter 'Radzen*.dll' | Select-Object -ExpandProperty Name)
-if ($shipped.Count -gt 0) {
-    throw "Plugin output contains host assemblies: $($shipped -join ', ')"
+    $nuspec = $archive.Entries | Where-Object { $_.FullName -eq "$pluginName.nuspec" }
+    $reader = [System.IO.StreamReader]::new($nuspec.Open())
+    try {
+        $metadata = ([xml] $reader.ReadToEnd()).package.metadata
+    }
+    finally {
+        $reader.Dispose()
+    }
+    $types = @($metadata.packageTypes.packageType | ForEach-Object { $_.name })
+    if ('LANCommander.Plugin' -notin $types -or 'LANCommander.Plugin.Server' -notin $types) {
+        throw 'Package must declare both LANCommander.Plugin and LANCommander.Plugin.Server package types.'
+    }
+    if (@($metadata.SelectNodes('.//dependency')).Count -gt 0) {
+        throw 'Plugin package must not declare NuGet dependencies; LANCommander does not install them.'
+    }
+}
+finally {
+    $archive.Dispose()
 }
 
-if (-not (Test-Path (Join-Path $publishDirectory "$pluginName.dll"))) {
-    throw "Plugin output is missing $pluginName.dll."
-}
+$hash = (Get-FileHash -LiteralPath $packagePath -Algorithm SHA256).Hash.ToLowerInvariant()
+Set-Content -LiteralPath "$packagePath.sha256" -Value "$hash  $(Split-Path -Leaf $packagePath)" -NoNewline
 
-New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
-$zipPath = Join-Path $OutputDirectory "$pluginName-$Version.zip"
-if (Test-Path $zipPath) {
-    Remove-Item -LiteralPath $zipPath -Force
-}
-
-# Compress the folder itself so extraction yields Data/Plugins/LANCommander.RecompCatalog.Plugin.
-Compress-Archive -Path $publishDirectory -DestinationPath $zipPath -CompressionLevel Optimal
-
-$hash = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
-Set-Content -LiteralPath "$zipPath.sha256" -Value "$hash  $(Split-Path -Leaf $zipPath)" -NoNewline
-
-Write-Host "Packaged $zipPath"
+Write-Host "Packaged $packagePath"
 Write-Host "SHA-256  $hash"
-Get-ChildItem -LiteralPath $publishDirectory -Name | ForEach-Object { Write-Host "  $pluginName/$_" }
+$files | ForEach-Object { Write-Host "  $_" }
 
 if ($env:GITHUB_OUTPUT) {
-    "zip=$zipPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+    "package=$packagePath" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
     "version=$Version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 }

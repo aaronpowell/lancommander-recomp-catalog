@@ -5,7 +5,20 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <Version>0.4.0</Version>
+    <Version>0.4.1</Version>
+    <PackageId>LANCommander.RecompCatalog.Plugin</PackageId>
+    <Authors>Aaron Powell</Authors>
+    <Description>Independent Quiver-compatible recompilation catalog browser and game importer for LANCommander Server.</Description>
+    <PackageProjectUrl>https://github.com/aaronpowell/lancommander-recomp-catalog</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/aaronpowell/lancommander-recomp-catalog</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>LANCommander;plugin;server;recomp;catalog</PackageTags>
+    <PackageType>LANCommander.Plugin;LANCommander.Plugin.Server</PackageType>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+    <TargetsForTfmSpecificBuildOutput>$(TargetsForTfmSpecificBuildOutput);PackPluginAssemblies</TargetsForTfmSpecificBuildOutput>
     <!-- Keep the git SHA out of the reported plugin version. -->
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <!-- The plugin is dropped into the server's Plugins folder; it serves no static web assets. -->
@@ -32,5 +45,17 @@
     <PackageReference Include="LANCommander.Server.Plugins" Version="$(LANCommanderPackageVersion)" ExcludeAssets="runtime" PrivateAssets="all" />
     <PackageReference Include="LANCommander.Server.UI" Version="$(LANCommanderPackageVersion)" ExcludeAssets="runtime" PrivateAssets="all" />
   </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\LICENSE" Pack="true" PackagePath="\" />
+    <None Include="..\README.md" Pack="true" PackagePath="\" />
+    <PluginAssembly Include="LANCommander.RecompCatalog.Core;LANCommander.RecompCatalog.Infrastructure;LANCommander.RecompCatalog.Providers" />
+  </ItemGroup>
+
+  <Target Name="PackPluginAssemblies" DependsOnTargets="ResolveReferences">
+    <ItemGroup>
+      <BuildOutputInPackage Include="@(PluginAssembly->'$(OutDir)%(Identity).dll')" />
+    </ItemGroup>
+  </Target>
 
 </Project>
