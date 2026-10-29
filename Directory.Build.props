@@ -1,0 +1,11 @@
+<Project>
+  <PropertyGroup>
+    <!-- LANCommander host packages (LANCommander.SDK, LANCommander.Server.Plugins, LANCommander.Server.UI). -->
+    <LANCommanderPackageVersion Condition="'$(LANCommanderPackageVersion)' == ''">2.2.0-alpha.3</LANCommanderPackageVersion>
+    <!--
+      NuGet audit flags transitive dependencies of LANCommander.SDK. The server provides those at runtime and the
+      plugin does not ship them, so keep the advisories visible as warnings instead of failing the build.
+    -->
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);NU1901;NU1902;NU1903;NU1904</WarningsNotAsErrors>
+  </PropertyGroup>
+</Project>
